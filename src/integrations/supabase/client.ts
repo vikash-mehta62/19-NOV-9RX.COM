@@ -108,6 +108,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    flowType: 'pkce',
+    // Use implicit flow so password recovery links work across different browsers/devices.
+    // PKCE links depend on a local code_verifier stored in the same browser that initiated the flow.
+    flowType: "implicit",
   },
 });

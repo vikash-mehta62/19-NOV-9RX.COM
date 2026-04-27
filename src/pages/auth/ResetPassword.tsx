@@ -15,6 +15,7 @@ export const ResetPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerifyingLink, setIsVerifyingLink] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
@@ -32,19 +33,89 @@ export const ResetPassword = () => {
   };
 
   useEffect(() => {
-    // Check if user has a valid session from the reset link
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+    const verifyRecoverySession = async () => {
+      try {
+        // Recovery links can arrive either with hash tokens or auth code.
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        const queryParams = new URLSearchParams(window.location.search);
+
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
+        const hashType = hashParams.get("type");
+        const authCode = queryParams.get("code");
+        const tokenHash = queryParams.get("token_hash") || queryParams.get("token");
+        const queryType = queryParams.get("type");
+
+        if (hashType === "recovery" && accessToken && refreshToken) {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (setSessionError) {
+            throw setSessionError;
+          }
+
+          // Clean URL after session is captured.
+          window.history.replaceState({}, document.title, "/reset-password");
+        } else if (authCode) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(authCode);
+          if (exchangeError) {
+            throw exchangeError;
+          }
+          window.history.replaceState({}, document.title, "/reset-password");
+        } else if (tokenHash && queryType === "recovery") {
+          // Some Supabase email templates deliver token_hash instead of code/access tokens.
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: "recovery",
+          });
+          if (verifyError) {
+            throw verifyError;
+          }
+          window.history.replaceState({}, document.title, "/reset-password");
+        }
+
+        // Give auth state a brief moment to settle on slower browsers/devices.
+        let {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          const retry = await supabase.auth.getSession();
+          session = retry.data.session;
+        }
+
+        // Final retry path: wait for PASSWORD_RECOVERY auth event if session still missing.
+        if (!session) {
+          session = await new Promise((resolve) => {
+            const timeout = setTimeout(() => resolve(null), 2000);
+            const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
+              if ((event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") && nextSession) {
+                clearTimeout(timeout);
+                sub.subscription.unsubscribe();
+                resolve(nextSession);
+              }
+            });
+          });
+        }
+
+        if (!session) {
+          throw new Error("Invalid or expired recovery session");
+        }
+      } catch (_error) {
         toast({
           title: "Invalid or Expired Link",
           description: "Please request a new password reset link",
           variant: "destructive",
         });
         navigate("/forgot-password");
+      } finally {
+        setIsVerifyingLink(false);
       }
     };
-    checkSession();
+
+    verifyRecoverySession();
   }, [navigate, toast]);
 
   const validatePassword = (pwd: string): string | null => {
@@ -163,7 +234,12 @@ export const ResetPassword = () => {
             </Alert>
           )}
 
-          {success ? (
+          {isVerifyingLink ? (
+            <div className="flex items-center justify-center py-10 text-sm text-gray-600">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Verifying reset link...
+            </div>
+          ) : success ? (
             <div className="space-y-4">
               <Alert className="border-green-200 bg-green-50">
                 <CheckCircle2 className="h-4 w-4 text-green-600" />

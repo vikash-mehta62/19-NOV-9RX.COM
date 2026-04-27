@@ -316,6 +316,7 @@ function App() {
   // Global magic link redirect handler - redirect to /update-profile if magic link detected
   useEffect(() => {
     const hash = window.location.hash;
+    const search = window.location.search;
     const currentPath = location.pathname;
     
     // Check if we have a magic link hash and we're NOT already on update-profile
@@ -326,8 +327,23 @@ function App() {
       
       // Redirect to update-profile with the hash preserved
       window.location.href = '/update-profile' + hash;
+      return;
     }
-  }, [location.pathname]);
+
+    // Password recovery links can open on unexpected routes depending on email client/link wrapper.
+    // Normalize them to /reset-password and preserve token payload.
+    const hasRecoveryHash =
+      hash.includes("type=recovery") &&
+      (hash.includes("access_token=") || hash.includes("refresh_token="));
+    const hasRecoveryCodeQuery =
+      search.includes("type=recovery") &&
+      (search.includes("code=") || search.includes("token_hash=") || search.includes("token="));
+
+    if ((hasRecoveryHash || hasRecoveryCodeQuery) && currentPath !== "/reset-password") {
+      console.log("🔐 Recovery link detected on non-reset route, redirecting to /reset-password");
+      window.location.href = `/reset-password${search || ""}${hash || ""}`;
+    }
+  }, [location.pathname, location.search]);
 
   // Session management: Tab/Browser close + 5 min inactivity with warning
   useEffect(() => {
