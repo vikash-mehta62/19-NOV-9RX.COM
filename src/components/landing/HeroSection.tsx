@@ -248,7 +248,7 @@ const HeroSection = () => {
   ];
 
   return (
-    <div className="relative min-h-screen">
+    <div className="relative">
       <Navbar />
       <section className="relative min-h-[auto] lg:min-h-screen flex items-center overflow-hidden">
         {/* Animated Background - Blue Theme */}
