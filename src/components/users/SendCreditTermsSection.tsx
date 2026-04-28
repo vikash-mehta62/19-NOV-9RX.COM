@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
+import axios from "../../../axiosconfig";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -136,39 +137,34 @@ export function SendCreditTermsSection({ userId, userName }: SendCreditTermsSect
 
     setSending(true);
     try {
-      const { data: session } = await supabase.auth.getSession();
-      const adminId = session?.session?.user?.id;
-
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + parseInt(expiresInDays));
-
-      const { error } = await supabase.from("sent_credit_terms").insert({
-        user_id: userId,
-        sent_by: adminId,
-        credit_limit: parseFloat(creditLimit),
-        net_terms: parseInt(netTerms),
-        interest_rate: parseFloat(interestRate),
-        terms_version: creditTermsTemplate.version,
-        custom_message: customMessage || null,
-        expires_at: expiresAt.toISOString(),
-        status: "pending",
+      const response = await axios.post("/api/terms-management/send-credit-terms", {
+        userId,
+        creditLimit: parseFloat(creditLimit),
+        netTerms: parseInt(netTerms),
+        interestRate: parseFloat(interestRate),
+        termsVersion: creditTermsTemplate.version,
+        customMessage: customMessage || null,
+        expiresInDays: parseInt(expiresInDays),
       });
 
-      if (error) throw error;
+      if (!response?.data?.success) {
+        throw new Error(response?.data?.message || "Failed to send credit terms");
+      }
 
       toast({
         title: "Terms Sent!",
-        description: `Credit terms have been sent to ${userName || "the user"} for review and signature.`,
+        description: `Credit terms email has been sent to ${userName || "the user"} for review and signature.`,
       });
 
       setShowSendDialog(false);
       resetForm();
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to send credit terms";
       console.error("Error sending terms:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to send credit terms",
+        description: message,
         variant: "destructive",
       });
     } finally {

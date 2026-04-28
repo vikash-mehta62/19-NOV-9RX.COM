@@ -3,6 +3,7 @@ const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 const PDFDocument = require("pdfkit");
 const { requireAdmin } = require("../middleware/auth");
+const mailSender = require("../utils/mailSender");
 const PHARMACY_PROFILE_LOGO_URL = "https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/9RX%20LOGO/9rx_logo.png";
 
 // Initialize Supabase Admin Client
@@ -24,6 +25,138 @@ const getSupabaseAdmin = () => {
 };
 
 router.use(requireAdmin);
+
+/**
+ * Send credit terms to user and trigger email notification
+ * POST /api/terms-management/send-credit-terms
+ */
+router.post("/send-credit-terms", async (req, res) => {
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const {
+      userId,
+      creditLimit,
+      netTerms,
+      interestRate,
+      termsVersion,
+      customMessage,
+      expiresInDays,
+    } = req.body || {};
+
+    if (
+      !userId ||
+      creditLimit === undefined ||
+      netTerms === undefined ||
+      interestRate === undefined ||
+      !termsVersion ||
+      expiresInDays === undefined
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+      });
+    }
+
+    const adminId = req.auth?.user?.id || null;
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("id, first_name, last_name, email")
+      .eq("id", userId)
+      .single();
+
+    if (profileError || !profile) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (!profile.email) {
+      return res.status(400).json({
+        success: false,
+        message: "User email not found",
+      });
+    }
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + Number(expiresInDays));
+
+    const { data: insertedTerms, error: insertError } = await supabaseAdmin
+      .from("sent_credit_terms")
+      .insert({
+        user_id: userId,
+        sent_by: adminId,
+        credit_limit: Number(creditLimit),
+        net_terms: Number(netTerms),
+        interest_rate: Number(interestRate),
+        terms_version: termsVersion,
+        custom_message: customMessage || null,
+        expires_at: expiresAt.toISOString(),
+        status: "pending",
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to create credit terms record",
+      });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || "https://9rx.com";
+    const reviewUrl = `${frontendUrl}/login`;
+    const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() || "Customer";
+
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 680px; margin: 0 auto; color: #111827;">
+        <h2 style="margin: 0 0 16px;">Credit Terms Sent for Your Signature</h2>
+        <p>Hello ${fullName},</p>
+        <p>Your credit terms are ready for review and signature.</p>
+        <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+          <p style="margin: 0 0 8px;"><strong>Credit Limit:</strong> $${Number(creditLimit).toLocaleString()}</p>
+          <p style="margin: 0 0 8px;"><strong>Net Terms:</strong> Net ${Number(netTerms)}</p>
+          <p style="margin: 0 0 8px;"><strong>Late Fee:</strong> ${Number(interestRate).toFixed(2)}% per month</p>
+          <p style="margin: 0;"><strong>Expires On:</strong> ${expiresAt.toLocaleDateString("en-US")}</p>
+        </div>
+        ${customMessage ? `<p><strong>Message from admin:</strong><br/>${String(customMessage).replace(/\n/g, "<br/>")}</p>` : ""}
+        <p>Please sign these terms from your dashboard after login.</p>
+        <p style="margin: 24px 0;">
+          <a href="${reviewUrl}" style="display: inline-block; padding: 10px 16px; background: #7c3aed; color: #ffffff; text-decoration: none; border-radius: 6px;">
+            Review and Sign Terms
+          </a>
+        </p>
+        <p>If you did not expect this email, please contact support.</p>
+      </div>
+    `;
+
+    const mailResult = await mailSender(
+      profile.email,
+      "Action Required: Review and Sign Your Credit Terms",
+      emailHtml
+    );
+
+    if (!mailResult?.success) {
+      return res.status(500).json({
+        success: false,
+        message: mailResult?.error || "Failed to send credit terms email",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Credit terms sent and email delivered",
+      sentTermsId: insertedTerms.id,
+    });
+  } catch (error) {
+    console.error("Send credit terms error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
 
 /**
  * Get user terms acceptance details for admin viewing
