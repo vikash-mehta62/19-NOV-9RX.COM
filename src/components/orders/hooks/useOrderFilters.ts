@@ -15,9 +15,14 @@ export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) =
   });
 
   const filteredOrders = (orders || [])
-    .filter((order) =>
-      statusFilter === "all" ? true : order.payment_status === statusFilter
-    )
+    .filter((order) => {
+      if (statusFilter === "all") return true;
+      const paymentStatus = String(order.payment_status || "").toLowerCase();
+      if (statusFilter === "partial") {
+        return ["partial_paid", "partial", "partially_paid"].includes(paymentStatus);
+      }
+      return paymentStatus === statusFilter;
+    })
     .filter((order) => {
       const selectedStatuses =
         statusFilter2 === "all"

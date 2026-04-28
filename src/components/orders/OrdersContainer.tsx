@@ -130,6 +130,16 @@ export const OrdersContainer = ({
     totalRevenue: 0,
     pendingPayment: 0,
   });
+  const [poDbStats, setPoDbStats] = useState({
+    total: 0,
+    pending: 0,
+    approved: 0,
+    receiving: 0,
+    closed: 0,
+    rejected: 0,
+    totalValue: 0,
+    vendorCount: 0,
+  });
 
   // Sorting state
   const [sortField, setSortField] = useState<SortField>("date");
@@ -264,6 +274,9 @@ export const OrdersContainer = ({
               query = query.in("profile_id", userIds);
             }
           }
+
+          // Sales Orders page stats must exclude purchase orders
+          query = query.or("poAccept.eq.true,poAccept.is.null");
 
           const { data: batch, error, count } = await query;
 
@@ -565,6 +578,114 @@ export const OrdersContainer = ({
     return stats;
   }, [poIs, sortedOrders]);
 
+  // Fetch PO stats from full DB dataset (not paginated / not list-limited)
+  useEffect(() => {
+    const fetchPoStats = async () => {
+      if (!poIs) return;
+
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) return;
+
+        const role = sessionStorage.getItem("userType");
+        let allPoOrders: any[] = [];
+        let from = 0;
+        const batchSize = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          let query = supabase
+            .from("orders")
+            .select(
+              "id, status, total_amount, poApproved, poRejected, poAccept, void, profile_id, customerInfo",
+              { count: "exact" }
+            )
+            .is("deleted_at", null)
+            .eq("poAccept", false)
+            .range(from, from + batchSize - 1);
+
+          if (role === "pharmacy") {
+            query = query.eq("profile_id", session.user.id);
+          } else if (role === "group") {
+            const { data: groupProfiles } = await supabase
+              .from("profiles")
+              .select("id")
+              .eq("group_id", session.user.id);
+
+            if (groupProfiles && groupProfiles.length > 0) {
+              const userIds = groupProfiles.map((user: any) => user.id);
+              query = query.in("profile_id", userIds);
+            }
+          }
+
+          const { data: batch, error, count } = await query;
+          if (error) throw error;
+
+          if (batch && batch.length > 0) {
+            allPoOrders = [...allPoOrders, ...batch];
+            from += batchSize;
+            if ((count && allPoOrders.length >= count) || batch.length < batchSize) {
+              hasMore = false;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+
+        const stats = {
+          total: 0,
+          pending: 0,
+          approved: 0,
+          receiving: 0,
+          closed: 0,
+          rejected: 0,
+          totalValue: 0,
+          vendorCount: 0,
+        };
+        const vendors = new Set<string>();
+
+        allPoOrders.forEach((order: any) => {
+          if (order.void) return;
+
+          stats.total += 1;
+          stats.totalValue += Number(order.total_amount || 0);
+
+          switch (getPoWorkflowState(order)) {
+            case "pending":
+              stats.pending += 1;
+              break;
+            case "approved":
+              stats.approved += 1;
+              break;
+            case "partially_received":
+            case "received":
+              stats.receiving += 1;
+              break;
+            case "closed":
+              stats.closed += 1;
+              break;
+            case "rejected":
+              stats.rejected += 1;
+              break;
+          }
+
+          const vendorKey = order.customerInfo?.cusid || order.customerInfo?.name || order.profile_id;
+          if (vendorKey) vendors.add(String(vendorKey));
+        });
+
+        stats.vendorCount = vendors.size;
+        setPoDbStats(stats);
+      } catch (error) {
+        console.error("Error fetching PO stats:", error);
+      }
+    };
+
+    fetchPoStats();
+  }, [poIs]);
+
   useEffect(() => {
     loadOrders({ statusFilter, statusFilter2, searchQuery, dateRange, poIs });
   }, [statusFilter, statusFilter2, searchQuery, dateRange, page, poIs, limit, location.pathname]);
@@ -620,8 +741,9 @@ export const OrdersContainer = ({
   return (
     <div className="space-y-4">
       {poIs && poStats && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="space-y-3">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="space-y-3">
             <div className="min-w-0">
               <OrderFilters
                 searchValue={searchQuery}
@@ -680,6 +802,58 @@ export const OrdersContainer = ({
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-8 gap-3">
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="p-3">
+                <div className="text-xl font-bold text-blue-700">{poDbStats.total}</div>
+                <div className="text-xs text-blue-600">Total PO</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-amber-50 border-amber-200">
+              <CardContent className="p-3">
+                <div className="text-xl font-bold text-amber-700">{poDbStats.pending}</div>
+                <div className="text-xs text-amber-600">Pending</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-emerald-50 border-emerald-200">
+              <CardContent className="p-3">
+                <div className="text-xl font-bold text-emerald-700">{poDbStats.approved}</div>
+                <div className="text-xs text-emerald-600">Approved</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-violet-50 border-violet-200">
+              <CardContent className="p-3">
+                <div className="text-xl font-bold text-violet-700">{poDbStats.receiving}</div>
+                <div className="text-xs text-violet-600">Receiving</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-sky-50 border-sky-200">
+              <CardContent className="p-3">
+                <div className="text-xl font-bold text-sky-700">{poDbStats.closed}</div>
+                <div className="text-xs text-sky-600">Closed</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-rose-50 border-rose-200">
+              <CardContent className="p-3">
+                <div className="text-xl font-bold text-rose-700">{poDbStats.rejected}</div>
+                <div className="text-xs text-rose-600">Rejected</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-indigo-50 border-indigo-200">
+              <CardContent className="p-3">
+                <div className="text-xl font-bold text-indigo-700">${poDbStats.totalValue.toFixed(2)}</div>
+                <div className="text-xs text-indigo-600">Total Value</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-cyan-50 border-cyan-200">
+              <CardContent className="p-3">
+                <div className="text-xl font-bold text-cyan-700">{poDbStats.vendorCount}</div>
+                <div className="text-xs text-cyan-600">Vendors</div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}
@@ -759,11 +933,18 @@ export const OrdersContainer = ({
           />
 
           {!poIs && (
-            <StatusFilter
-              value={statusFilter2}
-              onValueChange={setStatusFilter2}
-              multiSelect={userRole === "admin"}
-            />
+            <>
+              <StatusFilter
+                value={statusFilter}
+                onValueChange={(value) => setStatusFilter(Array.isArray(value) ? "all" : value)}
+                type="status"
+              />
+              <StatusFilter
+                value={statusFilter2}
+                onValueChange={setStatusFilter2}
+                multiSelect={userRole === "admin"}
+              />
+            </>
           )}
         </div>
 

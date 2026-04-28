@@ -118,11 +118,21 @@ export default function Analytics() {
   }, [hasActiveFilters, selectedFilters]);
 
   const fetchQuickStats = async () => {
+    const getRecognizedRevenue = (order: any) => {
+      const status = String(order?.payment_status || "").toLowerCase();
+      const totalAmount = Number(order?.total_amount || 0);
+      const paidAmount = Number(order?.paid_amount || 0);
+
+      if (status === "paid") return totalAmount;
+      if (status === "partial" || status === "partially_paid") return paidAmount;
+      return 0;
+    };
+
     try {
       // Fetch orders for revenue and count (without poApproved filter to get all orders)
       const { data: allOrders, error: ordersError } = await supabase
         .from('orders')
-        .select('id, total_amount, poApproved, items')
+        .select('id, total_amount, paid_amount, payment_status, poApproved, items')
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString())
         .or('void.eq.false,void.is.null')
@@ -133,7 +143,7 @@ export default function Analytics() {
         // Try without poApproved if column doesn't exist
         const { data: ordersWithoutPO } = await supabase
           .from('orders')
-          .select('id, total_amount, items')
+          .select('id, total_amount, paid_amount, payment_status, items')
           .gte('created_at', dateRange.from.toISOString())
           .lte('created_at', dateRange.to.toISOString())
           .or('void.eq.false,void.is.null')
@@ -183,7 +193,7 @@ export default function Analytics() {
           }
         }
 
-        const totalRevenue = filteredOrders?.reduce((sum, order) => sum + parseFloat(String(order.total_amount || '0')), 0) || 0;
+        const totalRevenue = filteredOrders?.reduce((sum, order) => sum + getRecognizedRevenue(order), 0) || 0;
         const totalOrders = filteredOrders?.length || 0;
 
         // Fetch active stores
@@ -319,7 +329,7 @@ export default function Analytics() {
         }
       }
 
-      const totalRevenue = orders?.reduce((sum, order) => sum + parseFloat(String(order.total_amount || '0')), 0) || 0;
+      const totalRevenue = orders?.reduce((sum, order) => sum + getRecognizedRevenue(order), 0) || 0;
       const totalOrders = orders?.length || 0;
 
       // Fetch active stores

@@ -5,7 +5,18 @@ export interface DashboardStats {
   totalSales: number;
   totalOrders: number;
   totalCustomers: number;
+  customerBreakdown: {
+    pharmacy: number;
+    group: number;
+    hospital: number;
+  };
   avgOrderValue: number;
+  paymentBreakdown: {
+    paid: number;
+    unpaid: number;
+    pending: number;
+    partial: number;
+  };
   // Trend data (comparing to previous period)
   salesTrend: { change: number; direction: 'up' | 'down' | 'neutral' };
   ordersTrend: { change: number; direction: 'up' | 'down' | 'neutral' };
@@ -59,51 +70,116 @@ const getPreviousPeriodRange = (timeRange: string): { from: Date; to: Date } => 
 
 // Fetch dashboard stats with real trend calculations
 export const fetchDashboardStats = async (timeRange: string): Promise<DashboardStats> => {
+  const getRecognizedRevenue = (order: any) => {
+    const status = String(order?.payment_status || "").toLowerCase();
+    const totalAmount = Number(order?.total_amount || 0);
+    const paidAmount = Number(order?.paid_amount || 0);
+
+    if (status === 'paid') return totalAmount;
+    if (status === 'partial_paid' || status === 'partial' || status === 'partially_paid') return paidAmount;
+    return 0;
+  };
+
   const { from, to } = getDateRange(timeRange);
   const prevRange = getPreviousPeriodRange(timeRange);
 
-  // Current period query
-  let currentQuery = supabase
-    .from('orders')
-    .select('id, total_amount, profile_id, created_at')
-    .or('void.eq.false,void.is.null')
-    .is('deleted_at', null);
+  const fetchOrdersInRange = async (rangeFrom: Date | null, rangeTo: Date, endExclusive = false) => {
+    const all: any[] = [];
+    let start = 0;
+    const batchSize = 1000;
+    let hasMore = true;
 
-  if (from) {
-    currentQuery = currentQuery.gte('created_at', from.toISOString());
-  }
+    while (hasMore) {
+      let query = supabase
+        .from('orders')
+        .select('id, total_amount, paid_amount, payment_status, poAccept, profile_id, created_at', { count: 'exact' })
+        .or('void.eq.false,void.is.null')
+        .is('deleted_at', null)
+        .range(start, start + batchSize - 1);
 
-  // Previous period query for comparison
-  let prevQuery = supabase
-    .from('orders')
-    .select('id, total_amount, profile_id')
-    .or('void.eq.false,void.is.null')
-    .is('deleted_at', null)
-    .gte('created_at', prevRange.from.toISOString())
-    .lt('created_at', prevRange.to.toISOString());
+      if (rangeFrom) {
+        query = query.gte('created_at', rangeFrom.toISOString());
+      }
+      query = endExclusive
+        ? query.lt('created_at', rangeTo.toISOString())
+        : query.lte('created_at', rangeTo.toISOString());
 
-  const [{ data: currentOrders }, { data: prevOrders }] = await Promise.all([
-    currentQuery,
-    prevQuery
+      const { data, error, count } = await query;
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        all.push(...data);
+        start += batchSize;
+        if ((count && all.length >= count) || data.length < batchSize) {
+          hasMore = false;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return all;
+  };
+
+  const [currentOrders, prevOrders] = await Promise.all([
+    fetchOrdersInRange(from, to, false),
+    fetchOrdersInRange(prevRange.from, prevRange.to, true),
   ]);
 
   // Calculate current period stats
-  const currentSales = currentOrders?.reduce((sum, o) => sum + (parseFloat(o.total_amount) || 0), 0) || 0;
-  const currentOrderCount = currentOrders?.length || 0;
-  const currentCustomers = new Set(currentOrders?.map(o => o.profile_id) || []).size;
+  const currentSalesOrders = (currentOrders || []).filter((o: any) => o.poAccept !== false);
+  const prevSalesOrders = (prevOrders || []).filter((o: any) => o.poAccept !== false);
+
+  const currentSales = currentSalesOrders.reduce((sum, o) => sum + getRecognizedRevenue(o), 0);
+  const currentOrderCount = currentSalesOrders.length;
+  // Customer totals should match Users page (profiles table), not order activity.
+  const { data: profileRows, error: profilesError } = await supabase
+    .from('profiles')
+    .select('id, type')
+    .in('type', ['pharmacy', 'group', 'hospital']);
+
+  if (profilesError) throw profilesError;
+
+  const customerBreakdown = (profileRows || []).reduce(
+    (acc: { pharmacy: number; group: number; hospital: number }, row: any) => {
+      const t = String(row?.type || '').toLowerCase();
+      if (t === 'pharmacy') acc.pharmacy += 1;
+      else if (t === 'group') acc.group += 1;
+      else if (t === 'hospital') acc.hospital += 1;
+      return acc;
+    },
+    { pharmacy: 0, group: 0, hospital: 0 }
+  );
+
+  const currentCustomers =
+    customerBreakdown.pharmacy + customerBreakdown.group + customerBreakdown.hospital;
   const currentAvg = currentOrderCount > 0 ? currentSales / currentOrderCount : 0;
 
   // Calculate previous period stats
-  const prevSales = prevOrders?.reduce((sum, o) => sum + (parseFloat(o.total_amount) || 0), 0) || 0;
-  const prevOrderCount = prevOrders?.length || 0;
-  const prevCustomers = new Set(prevOrders?.map(o => o.profile_id) || []).size;
+  const prevSales = prevSalesOrders.reduce((sum, o) => sum + getRecognizedRevenue(o), 0);
+  const prevOrderCount = prevSalesOrders.length;
+  const prevCustomers = new Set(prevSalesOrders.map(o => o.profile_id) || []).size;
   const prevAvg = prevOrderCount > 0 ? prevSales / prevOrderCount : 0;
+
+  const paymentBreakdown = currentSalesOrders.reduce(
+    (acc, order) => {
+      const status = String(order.payment_status || "").toLowerCase();
+      if (status === "paid") acc.paid += 1;
+      else if (status === "partial_paid" || status === "partial" || status === "partially_paid") acc.partial += 1;
+      else if (status === "pending") acc.pending += 1;
+      else acc.unpaid += 1;
+      return acc;
+    },
+    { paid: 0, unpaid: 0, pending: 0, partial: 0 }
+  );
 
   return {
     totalSales: currentSales,
     totalOrders: currentOrderCount,
     totalCustomers: currentCustomers,
+    customerBreakdown,
     avgOrderValue: currentAvg,
+    paymentBreakdown,
     salesTrend: calculateTrend(currentSales, prevSales),
     ordersTrend: calculateTrend(currentOrderCount, prevOrderCount),
     customersTrend: calculateTrend(currentCustomers, prevCustomers),
@@ -167,31 +243,58 @@ export const fetchDashboardAlerts = async (): Promise<DashboardAlerts> => {
 
 // Fetch revenue chart data
 export const fetchRevenueChartData = async (timeRange: string) => {
+  const getRecognizedRevenue = (order: any) => {
+    const status = String(order?.payment_status || "").toLowerCase();
+    const totalAmount = Number(order?.total_amount || 0);
+    const paidAmount = Number(order?.paid_amount || 0);
+
+    if (status === 'paid') return totalAmount;
+    if (status === 'partial_paid' || status === 'partial' || status === 'partially_paid') return paidAmount;
+    return 0;
+  };
+
   const { from } = getDateRange(timeRange);
-  
-  let query = supabase
-    .from('orders')
-    .select('total_amount, created_at')
-    .or('void.eq.false,void.is.null')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: true });
 
-  if (from) {
-    query = query.gte('created_at', from.toISOString());
+  const allOrders: any[] = [];
+  let start = 0;
+  const batchSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from('orders')
+      .select('total_amount, paid_amount, payment_status, poAccept, created_at', { count: 'exact' })
+      .or('void.eq.false,void.is.null')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .range(start, start + batchSize - 1);
+
+    if (from) {
+      query = query.gte('created_at', from.toISOString());
+    }
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allOrders.push(...data);
+      start += batchSize;
+      if ((count && allOrders.length >= count) || data.length < batchSize) {
+        hasMore = false;
+      }
+    } else {
+      hasMore = false;
+    }
   }
-
-  const { data: orders } = await query;
-
-  if (!orders) return [];
 
   // Group by date
   const dailyRevenue = new Map<string, number>();
-  orders.forEach(order => {
+  allOrders.filter((order: any) => order.poAccept !== false).forEach(order => {
     const date = new Date(order.created_at).toLocaleDateString('en-US', { 
       month: 'short', 
       day: 'numeric' 
     });
-    dailyRevenue.set(date, (dailyRevenue.get(date) || 0) + (parseFloat(order.total_amount) || 0));
+    dailyRevenue.set(date, (dailyRevenue.get(date) || 0) + getRecognizedRevenue(order));
   });
 
   return Array.from(dailyRevenue.entries()).map(([date, revenue]) => ({

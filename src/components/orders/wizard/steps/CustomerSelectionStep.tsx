@@ -18,6 +18,7 @@ interface Customer {
   email: string;
   phone: string;
   type: "Pharmacy" | "Hospital" | "Group";
+  status?: string;
   company_name?: string;
   billing_address?: {
     street?: string;
@@ -86,12 +87,19 @@ const CustomerSelectionStepComponent = ({
         setIsLoading(true);
         setError(null);
 
-        const { data, error: fetchError } = await supabase
+        let query = supabase
           .from("profiles")
           .select("*")
-          .eq("status", "active")
           .in("type", ["pharmacy", "hospital", "group"])
           .order("created_at", { ascending: false });
+
+        // Admin order creation should allow selecting inactive customers too.
+        // Pharmacy-side flows keep active-only behavior.
+        if (isPharmacyRoute) {
+          query = query.eq("status", "active");
+        }
+
+        const { data, error: fetchError } = await query;
 
         if (fetchError) throw fetchError;
 
@@ -101,6 +109,7 @@ const CustomerSelectionStepComponent = ({
           email: profile.email || "",
           phone: profile.mobile_phone || profile.work_phone || "",
           type: profile.type || "Pharmacy",
+          status: profile.status || "active",
           company_name: profile.company_name || profile.display_name || "",
           billing_address: profile.billing_address || undefined,
           shipping_address: profile.shipping_address || undefined,
@@ -124,7 +133,7 @@ const CustomerSelectionStepComponent = ({
     };
 
     fetchCustomers();
-  }, [toast, refreshKey]);
+  }, [toast, refreshKey, isPharmacyRoute]);
 
   // Filter customers based on search and type
   const filteredCustomers = useMemo(() => {
@@ -233,6 +242,11 @@ const CustomerSelectionStepComponent = ({
                 <Badge className={`${getTypeBadgeColor(lockedCustomer.type)} text-xs`}>
                   {lockedCustomer.type}
                 </Badge>
+                {lockedCustomer.status === "inactive" && (
+                  <Badge className="ml-2 bg-red-100 text-red-800 hover:bg-red-100 text-xs">
+                    Inactive
+                  </Badge>
+                )}
               </div>
             </div>
           </CardContent>
@@ -378,9 +392,16 @@ const CustomerSelectionStepComponent = ({
                         <h3 className="font-semibold text-gray-900 text-sm lg:text-base leading-snug">
                           {customer.name}
                         </h3>
-                        <Badge className={`${getTypeBadgeColor(customer.type)} text-[10px] px-1.5 py-0 flex-shrink-0`}>
-                          {customer.type}
-                        </Badge>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Badge className={`${getTypeBadgeColor(customer.type)} text-[10px] px-1.5 py-0`}>
+                            {customer.type}
+                          </Badge>
+                          {customer.status === "inactive" && (
+                            <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-[10px] px-1.5 py-0">
+                              Inactive
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       {/* Company */}
                       {customer.company_name && (
@@ -444,6 +465,11 @@ const CustomerSelectionStepComponent = ({
                 <Badge className={`${getTypeBadgeColor(selectedCustomer.type)} text-xs`}>
                   {selectedCustomer.type}
                 </Badge>
+                {selectedCustomer.status === "inactive" && (
+                  <Badge className="ml-2 bg-red-100 text-red-800 hover:bg-red-100 text-xs">
+                    Inactive
+                  </Badge>
+                )}
               </div>
               {selectedCustomer.billing_address && (
                 <div>

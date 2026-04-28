@@ -97,7 +97,11 @@ setOrders([])
       }
       // Apply status filters
       if (statusFilter && statusFilter !== "all") {
-        query = query.eq("payment_status", statusFilter);
+        if (statusFilter === "partial") {
+          query = query.in("payment_status", ["partial_paid", "partial", "partially_paid"]);
+        } else {
+          query = query.eq("payment_status", statusFilter);
+        }
       }
       const selectedStatuses =
         statusFilter2 === "all" || !statusFilter2
@@ -154,10 +158,12 @@ setOrders([])
       }
  // ✅ PO orders filter - only filter when viewing PO page
     if (poIs === true) {
-      // Show only PO orders (poAccept = false means pending PO approval)
+      // PO page: only purchase orders
       query = query.eq("poAccept", false);
+    } else if (poIs === false) {
+      // Sales Orders page: exclude purchase orders, keep legacy rows (null) as sales.
+      query = query.or("poAccept.eq.true,poAccept.is.null");
     }
-    // When poIs = false (regular orders page), show all orders (no filter on poAccept)
       // Date range filter
       if (dateRange?.from && dateRange?.to) {
         query = query

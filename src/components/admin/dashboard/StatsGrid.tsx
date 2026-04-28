@@ -50,7 +50,7 @@ export function StatsGrid({ stats, revenueChartData, isLoading, hideFinancialDat
           value={stats.totalOrders.toLocaleString()}
           change={formatTrend(stats.ordersTrend)}
           trend={stats.ordersTrend.direction}
-          subtitle="vs previous period"
+          subtitle={`Paid ${stats.paymentBreakdown.paid} | Partial ${stats.paymentBreakdown.partial} | Pending ${stats.paymentBreakdown.pending} | Unpaid ${stats.paymentBreakdown.unpaid}`}
           color="red"
           icon={<ShoppingCart className="w-6 h-6" />}
           onClick={() => navigate("/admin/orders")}
@@ -62,7 +62,7 @@ export function StatsGrid({ stats, revenueChartData, isLoading, hideFinancialDat
           value={stats.totalCustomers.toLocaleString()}
           change={formatTrend(stats.customersTrend)}
           trend={stats.customersTrend.direction}
-          subtitle="vs previous period"
+          subtitle={`Pharmacy ${stats.customerBreakdown.pharmacy} | Group ${stats.customerBreakdown.group} | Hospital ${stats.customerBreakdown.hospital}`}
           color="green"
           icon={<Users className="w-6 h-6" />}
           onClick={() => navigate("/admin/users")}
@@ -98,7 +98,7 @@ export function StatsGrid({ stats, revenueChartData, isLoading, hideFinancialDat
           value={stats.totalOrders.toLocaleString()}
           change={formatTrend(stats.ordersTrend)}
           trend={stats.ordersTrend.direction}
-          subtitle="vs previous period"
+          subtitle={`Paid ${stats.paymentBreakdown.paid} | Partial ${stats.paymentBreakdown.partial} | Pending ${stats.paymentBreakdown.pending} | Unpaid ${stats.paymentBreakdown.unpaid}`}
           color="red"
           icon={<ShoppingCart className="w-6 h-6" />}
           onClick={() => navigate("/admin/orders")}
@@ -110,7 +110,7 @@ export function StatsGrid({ stats, revenueChartData, isLoading, hideFinancialDat
           value={stats.totalCustomers.toLocaleString()}
           change={formatTrend(stats.customersTrend)}
           trend={stats.customersTrend.direction}
-          subtitle="vs previous period"
+          subtitle={`Pharmacy ${stats.customerBreakdown.pharmacy} | Group ${stats.customerBreakdown.group} | Hospital ${stats.customerBreakdown.hospital}`}
           color="green"
           icon={<Users className="w-6 h-6" />}
           onClick={() => navigate("/admin/users")}

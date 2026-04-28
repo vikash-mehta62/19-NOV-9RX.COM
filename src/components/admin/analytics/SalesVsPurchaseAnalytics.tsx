@@ -45,7 +45,7 @@ export function SalesVsPurchaseAnalytics({ dateRange, refresh, selectedProducts 
       // Fetch all orders without nested relationships
       const { data: allOrders, error: ordersError } = await supabase
         .from('orders')
-        .select('id, total_amount, created_at, poApproved, items')
+        .select('id, total_amount, paid_amount, payment_status, created_at, poApproved, items')
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString())
         .or('void.eq.false,void.is.null')
@@ -56,7 +56,7 @@ export function SalesVsPurchaseAnalytics({ dateRange, refresh, selectedProducts 
         // Try without poApproved if column doesn't exist
         const { data: ordersWithoutPO } = await supabase
           .from('orders')
-          .select('id, total_amount, created_at, items')
+          .select('id, total_amount, paid_amount, payment_status, created_at, items')
           .gte('created_at', dateRange.from.toISOString())
           .lte('created_at', dateRange.to.toISOString())
           .or('void.eq.false,void.is.null')
@@ -166,7 +166,17 @@ export function SalesVsPurchaseAnalytics({ dateRange, refresh, selectedProducts 
       .filter(order => orderIdsWithProducts.has(order.id))
       .map(order => ({
         ...order,
-        total_amount: orderRevenueMap.get(order.id) || 0
+        total_amount: orderRevenueMap.get(order.id) || 0,
+        paid_amount: (() => {
+          const filteredRevenue = Number(orderRevenueMap.get(order.id) || 0);
+          const originalTotal = Number(order.total_amount || 0);
+          const originalPaid = Number(order.paid_amount || 0);
+
+          if (originalTotal <= 0 || originalPaid <= 0) return 0;
+
+          const ratio = Math.max(0, Math.min(1, originalPaid / originalTotal));
+          return filteredRevenue * ratio;
+        })()
       }));
     
     console.log('📊 FILTER - Found', allOrderItems.length, 'items,', filtered.length, 'orders');
@@ -176,6 +186,19 @@ export function SalesVsPurchaseAnalytics({ dateRange, refresh, selectedProducts 
   };
 
   const processOrdersData = (salesOrders: any[], purchaseOrders: any[]) => {
+    const getCollectedSalesAmount = (order: any) => {
+      const status = String(order?.payment_status || "").toLowerCase();
+      const paidAmount = parseFloat(order?.paid_amount || 0);
+      const totalAmount = parseFloat(order?.total_amount || 0);
+
+      if (status === "paid") return Number.isNaN(totalAmount) ? 0 : totalAmount;
+      if (status === "partial_paid" || status === "partial" || status === "partially_paid") {
+        return Number.isNaN(paidAmount) ? 0 : paidAmount;
+      }
+
+      return 0;
+    };
+
     // Aggregate by month
     const monthlyMap = new Map();
 
@@ -193,7 +216,7 @@ export function SalesVsPurchaseAnalytics({ dateRange, refresh, selectedProducts 
         salesCount: 0,
         purchaseCount: 0
       };
-      existing.sales += parseFloat(order.total_amount || 0);
+      existing.sales += getCollectedSalesAmount(order);
       existing.salesCount += 1;
       monthlyMap.set(month, existing);
     });
@@ -228,7 +251,7 @@ export function SalesVsPurchaseAnalytics({ dateRange, refresh, selectedProducts 
 
     // Calculate totals
     const totalSales = salesOrders?.reduce((sum, order) => 
-      sum + parseFloat(order.total_amount || 0), 0) || 0;
+      sum + getCollectedSalesAmount(order), 0) || 0;
     const totalPurchases = purchaseOrders?.reduce((sum, order) => 
       sum + parseFloat(order.total_amount || 0), 0) || 0;
     const grossProfit = totalSales - totalPurchases;

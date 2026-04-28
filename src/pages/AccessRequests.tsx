@@ -62,15 +62,7 @@ export default function AccessRequests() {
   }, [requests, search, typeFilter]);
 
   useEffect(() => {
-    const statusFromUrl = searchParams.get('status');
-    const requestIdFromUrl = searchParams.get('requestId');
-
-    if (requestIdFromUrl && !statusFromUrl) {
-      setStatusFilter('all');
-      return;
-    }
-
-    setStatusFilter(statusFromUrl || 'pending');
+    setStatusFilter('pending');
   }, [searchParams]);
 
   useEffect(() => {
@@ -98,9 +90,7 @@ export default function AccessRequests() {
         .select('id, first_name, last_name, email, company_name, type, created_at, status, account_status, mobile_phone, work_phone, billing_address, shipping_address, tax_id, display_name, group_id, rejection_reason')
         .order('created_at', { ascending: false });
 
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
+      query = query.eq('status', 'pending');
 
       const { data, error } = await query;
 
@@ -321,10 +311,7 @@ export default function AccessRequests() {
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
 

@@ -32,6 +32,7 @@ interface Customer {
   email: string;
   phone: string;
   type: "Pharmacy" | "Hospital" | "Group";
+  status?: string;
   company_name?: string;
   billing_address?: {
     street?: string;
@@ -224,7 +225,6 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
         const { data, error } = await supabase
           .from("profiles")
           .select("*")
-          .eq("status", "active")
           .in("type", ["pharmacy", "hospital", "group"])
           .order("created_at", { ascending: false });
 
@@ -236,6 +236,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
           email: profile.email || "",
           phone: profile.mobile_phone || profile.work_phone || "",
           type: profile.type || "Pharmacy",
+          status: profile.status || "active",
           company_name: profile.company_name || profile.display_name || "",
           billing_address: profile.billing_address || undefined,
           shipping_address: profile.shipping_address || undefined,
@@ -572,9 +573,16 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <h3 className="font-semibold text-gray-900 truncate">{customer.company_name || customer.name}</h3>
-                        <Badge className={cn("text-xs flex-shrink-0", getTypeBadgeColor(customer.type))}>
-                          {customer.type}
-                        </Badge>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Badge className={cn("text-xs", getTypeBadgeColor(customer.type))}>
+                            {customer.type}
+                          </Badge>
+                          {customer.status === "inactive" && (
+                            <Badge className="text-xs bg-red-100 text-red-800 hover:bg-red-100">
+                              Inactive
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       <p className="text-sm text-gray-500 truncate">{customer.email}</p>
                       <p className="text-xs text-gray-400">{customer.phone}</p>
@@ -618,6 +626,11 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                 <Badge className={cn("text-xs mt-1", getTypeBadgeColor(selectedCustomer.type))}>
                   {selectedCustomer.type}
                 </Badge>
+                {selectedCustomer.status === "inactive" && (
+                  <Badge className="text-xs mt-1 ml-2 bg-red-100 text-red-800 hover:bg-red-100">
+                    Inactive
+                  </Badge>
+                )}
               </div>
             </div>
 

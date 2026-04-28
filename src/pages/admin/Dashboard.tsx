@@ -222,7 +222,7 @@ const AdminDashboard = () => {
     let query = supabase
       .from('orders')
       .select('id, total_amount, status, profile_id, created_at, order_number, payment_status')
-      .or('void.eq.false,void.is.null')
+      .or('and(void.eq.false,poAccept.eq.true),and(void.eq.false,poAccept.is.null),and(void.is.null,poAccept.eq.true),and(void.is.null,poAccept.is.null)')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(10);
@@ -250,7 +250,7 @@ const AdminDashboard = () => {
     let query = supabase
       .from('orders')
       .select('profile_id, total_amount')
-      .or('void.eq.false,void.is.null')
+      .or('and(void.eq.false,poAccept.eq.true),and(void.eq.false,poAccept.is.null),and(void.is.null,poAccept.eq.true),and(void.is.null,poAccept.is.null)')
       .is('deleted_at', null);
 
     if (from) {
@@ -294,9 +294,9 @@ const AdminDashboard = () => {
     const { from } = getDateRange(timeRange);
     let query = supabase
       .from('orders')
-      .select('id, total_amount, profile_id, created_at, payment_status')
+      .select('id, total_amount, profile_id, created_at, payment_status, poAccept, poApproved, order_number')
       .eq('payment_status', 'unpaid')
-      .or('void.eq.false,void.is.null')
+      .or('and(void.eq.false,poAccept.eq.true),and(void.eq.false,poAccept.is.null),and(void.is.null,poAccept.eq.true),and(void.is.null,poAccept.is.null)')
       .is('deleted_at', null);
 
     if (from) {
@@ -305,11 +305,17 @@ const AdminDashboard = () => {
 
     const { data: orders } = await query;
     if (!orders) return;
+    const salesOnlyOrders = orders.filter((order: any) => {
+      const orderNo = String(order.order_number || '').toUpperCase();
+      const isPoByPrefix = orderNo.startsWith('PO-');
+      const isPoByFlag = order.poAccept === false || order.poApproved === true;
+      return !(isPoByPrefix || isPoByFlag);
+    });
 
     const pharmacyOutstanding = new Map<string, { id: string; outstanding: number; oldestDate: string }>();
     const buckets = { b0_30: 0, b31_60: 0, b61_90: 0, b90_plus: 0, total: 0 };
 
-    for (const order of orders) {
+    for (const order of salesOnlyOrders) {
       const pid = order.profile_id || 'unknown';
       const amount = parseFloat(order.total_amount) || 0;
       const age = Math.floor((Date.now() - new Date(order.created_at).getTime()) / (24 * 60 * 60 * 1000));
@@ -800,7 +806,7 @@ const AdminDashboard = () => {
               >
                 <div className="flex items-center space-x-2">
                   <ShoppingCart className="h-5 w-5 text-muted-foreground" />
-                  <span className="text-sm">Orders</span>
+                  <span className="text-sm">Sales Orders</span>
                 </div>
                 <span className="text-sm font-semibold">{stats?.totalOrders || 0}</span>
               </button>
