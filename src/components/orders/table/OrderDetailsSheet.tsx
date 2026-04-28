@@ -528,6 +528,10 @@ export const OrderDetailsSheet = ({
     if (!poIs) return;
 
     const shippingData = ((currentOrder as any)?.shipping || {}) as any;
+    const expectedDeliveryValue =
+      shippingData.estimatedDelivery ||
+      (currentOrder as any)?.estimated_delivery ||
+      "";
     const paymentData = ((currentOrder as any)?.payment || {}) as any;
 
     setPoFinance({
@@ -1014,6 +1018,10 @@ export const OrderDetailsSheet = ({
     const documentTitle = poIs ? "PURCHASE ORDER" : invoiceNumber && !isNewOrder ? "INVOICE" : "SALES ORDER";
     const documentNumber = poIs ? currentOrder.order_number : invoiceNumber && !isNewOrder ? invoiceNumber : currentOrder.order_number;
     const shippingData = ((currentOrder as any)?.shipping || {}) as any;
+    const expectedDeliveryValue =
+      shippingData.estimatedDelivery ||
+      (currentOrder as any)?.estimated_delivery ||
+      "";
     const vendorReference = (currentOrder as any)?.purchase_number_external || "Internal PO";
     const pdfPoWorkflowState = getPoWorkflowState(currentOrder);
     const poStatusLabel = getPoWorkflowLabel(pdfPoWorkflowState).toUpperCase();
@@ -1049,7 +1057,9 @@ export const OrderDetailsSheet = ({
     const discountAmount = Number((currentOrder as any)?.discount_amount || 0);
     const processingFee = Number((currentOrder as any)?.processing_fee_amount || 0);
     const discountDetails = (currentOrder as any)?.discount_details || [];
-    const total = subtotal + handling + freight + shipping + tax + processingFee - discountAmount;
+    const total = poIs
+      ? subtotal + handling + freight
+      : subtotal + handling + freight + shipping + tax + processingFee - discountAmount;
 
     const dividerY = renderStandardPdfHeader({
       doc,
@@ -1061,7 +1071,7 @@ export const OrderDetailsSheet = ({
       documentNumber,
       formattedDate,
       extraRightLines: poIs
-        ? [`Expected: ${formatDateOnly(shippingData.estimatedDelivery)}`]
+        ? [`Expected: ${formatDateOnly(expectedDeliveryValue)}`]
         : invoiceNumber && !isNewOrder
           ? [`SO Ref: ${currentOrder.order_number}`]
           : [],
@@ -1119,12 +1129,12 @@ export const OrderDetailsSheet = ({
           currentOrder.customerInfo?.email,
           vendorAddress,
         ]);
+      const poShipAddr = ((currentOrder as any)?.shippingAddress?.address || {}) as Record<string, any>;
       const shipToLayout = measureInfoBox([
-          warehouseCompany.name,
-          warehouseCompany.street,
-          [warehouseCompany.city, warehouseCompany.state, warehouseCompany.zipCode].filter(Boolean).join(", "),
-          shippingData.method ? `Method: ${shippingData.method}` : "",
-          // showPricing ? "Pricing included on vendor copy" : "Pricing hidden on vendor copy",
+          (currentOrder as any)?.shippingAddress?.fullName || warehouseCompany.name,
+          (currentOrder as any)?.shippingAddress?.phone || warehouseCompany.phone,
+          poShipAddr.street || warehouseCompany.street,
+          [poShipAddr.city || warehouseCompany.city, poShipAddr.state || warehouseCompany.state, poShipAddr.zip_code || warehouseCompany.zipCode].filter(Boolean).join(", "),
         ]);
       const sharedInfoBoxHeight = Math.max(vendorLayout.boxHeight, shipToLayout.boxHeight);
       drawInfoBox("VENDOR", margin, vendorLayout, sharedInfoBoxHeight);
@@ -1156,8 +1166,7 @@ export const OrderDetailsSheet = ({
     if (poIs) {
       autoTable(doc as any, {
         body: [
-          ["Vendor Reference", vendorReference, "Expected Delivery", formatDateOnly(shippingData.estimatedDelivery)],
-          ["Shipping Method", shippingData.method || "Not set", "Pricing", showPricing ? "Included" : "Hidden"],
+          ["Vendor Reference", vendorReference, "Expected Delivery", formatDateOnly(expectedDeliveryValue)],
         ],
         startY: nextSectionY,
         theme: "grid",
@@ -1584,12 +1593,13 @@ export const OrderDetailsSheet = ({
         ].filter(Boolean);
 
         const vendorLayout = measureInfoBox(vendorLines);
+        const poShipAddr = ((currentOrder as any)?.shippingAddress?.address || {}) as Record<string, any>;
         const shipToLayout = measureInfoBox([
-            warehouseCompany.name,
-            warehouseCompany.street,
-            [warehouseCompany.city, warehouseCompany.state, warehouseCompany.zipCode].filter(Boolean).join(", "),
-            warehouseCompany.phone,
-            warehouseCompany.email
+            (currentOrder as any)?.shippingAddress?.fullName || warehouseCompany.name,
+            (currentOrder as any)?.shippingAddress?.phone || warehouseCompany.phone,
+            poShipAddr.street || warehouseCompany.street,
+            [poShipAddr.city || warehouseCompany.city, poShipAddr.state || warehouseCompany.state, poShipAddr.zip_code || warehouseCompany.zipCode].filter(Boolean).join(", "),
+            (currentOrder as any)?.shippingAddress?.email || warehouseCompany.email
           ]);
         const sharedInfoBoxHeight = Math.max(vendorLayout.boxHeight, shipToLayout.boxHeight);
         drawInfoBox("VENDOR", margin, vendorLayout, sharedInfoBoxHeight);
@@ -2022,12 +2032,13 @@ export const OrderDetailsSheet = ({
         ].filter(Boolean);
 
         const vendorLayout = measureInfoBox(vendorLines);
+        const poShipAddr = ((currentOrder as any)?.shippingAddress?.address || {}) as Record<string, any>;
         const shipToLayout = measureInfoBox([
-            warehouseCompany.name,
-            warehouseCompany.street,
-            [warehouseCompany.city, warehouseCompany.state, warehouseCompany.zipCode].filter(Boolean).join(", "),
-            warehouseCompany.phone,
-            warehouseCompany.email
+            (currentOrder as any)?.shippingAddress?.fullName || warehouseCompany.name,
+            (currentOrder as any)?.shippingAddress?.phone || warehouseCompany.phone,
+            poShipAddr.street || warehouseCompany.street,
+            [poShipAddr.city || warehouseCompany.city, poShipAddr.state || warehouseCompany.state, poShipAddr.zip_code || warehouseCompany.zipCode].filter(Boolean).join(", "),
+            (currentOrder as any)?.shippingAddress?.email || warehouseCompany.email
           ]);
         const sharedInfoBoxHeight = Math.max(vendorLayout.boxHeight, shipToLayout.boxHeight);
         drawInfoBox("VENDOR", margin, vendorLayout, sharedInfoBoxHeight);

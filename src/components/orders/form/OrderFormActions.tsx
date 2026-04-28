@@ -18,6 +18,8 @@ interface OrderFormActionsProps {
   setIsCus?: React.Dispatch<React.SetStateAction<boolean>>;
   isCus?: boolean;
   poIs?: boolean;
+  onPoSaveOnlyClick?: () => void;
+  onPoSaveAndEmailClick?: () => void;
 }
 
 export function OrderFormActions({
@@ -30,6 +32,8 @@ export function OrderFormActions({
   setIsCus, // ✅ Added missing prop
   isCus, // ✅ Added missing prop
   poIs = false,
+  onPoSaveOnlyClick,
+  onPoSaveAndEmailClick,
 }: OrderFormActionsProps) {
   const { toast } = useToast();
   const userType = sessionStorage.getItem("order_pay");
@@ -256,18 +260,41 @@ export function OrderFormActions({
           {userType === "true" ||
           userType === null ||
           userRole.toLocaleLowerCase() === "admin" ? (
-            <Button
-              type="submit"
-              size="lg"
-              disabled={isSubmitting || isValidating}
-            >
-              <ShoppingCart className="mr-2 h-4 w-4" />
-              {isSubmitting
-                ? "Creating Order..."
-                : poIs
-                ? "Create Purchase Order"
-                : "Create Order"}
-            </Button>
+            poIs ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  disabled={isSubmitting || isValidating}
+                  onClick={() => onPoSaveOnlyClick?.()}
+                >
+                  {isSubmitting ? "Saving..." : "Save Only"}
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  disabled={isSubmitting || isValidating}
+                  onClick={() => onPoSaveAndEmailClick?.()}
+                >
+                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  {isSubmitting ? "Saving..." : "Save & Email"}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="submit"
+                size="lg"
+                disabled={isSubmitting || isValidating}
+              >
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                {isSubmitting
+                  ? "Creating Order..."
+                  : poIs
+                  ? "Create Purchase Order"
+                  : "Create Order"}
+              </Button>
+            )
           ) : (
             <p
               onClick={() => setModalIsOpen(true)}
@@ -307,3 +334,4 @@ export function OrderFormActions({
     </div>
   );
 }
+

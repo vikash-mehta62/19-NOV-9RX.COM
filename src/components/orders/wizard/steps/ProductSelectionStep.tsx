@@ -19,10 +19,12 @@ import { Textarea } from "@/components/ui/textarea";
 import CustomProductForm from "@/components/orders/Customitems";
 import { cn } from "@/lib/utils";
 import { useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useScreenSize } from "@/hooks/use-mobile";
 import { fetchCategories } from "@/utils/categoryUtils";
+import { updateCartPrice } from "@/store/actions/cartActions";
 
 interface ProductSize {
   id: string;
@@ -180,6 +182,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate, pricingProfileId }: Produ
   const { toast } = useToast();
   const { cartItems, addToCart, removeFromCart, updateQuantity, updateDescription } = useCart();
   const userProfile = useSelector(selectUserProfile);
+  const dispatch = useDispatch();
   const queryClient = useQueryClient();
   const screenSize = useScreenSize();
   const isMobile = screenSize === 'mobile';
@@ -193,6 +196,8 @@ const ProductSelectionStepComponent = ({ onCartUpdate, pricingProfileId }: Produ
   const [showNotesDialog, setShowNotesDialog] = useState(false);
   const [selectedItemForNotes, setSelectedItemForNotes] = useState<any>(null);
   const [tempNotes, setTempNotes] = useState("");
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   
   // Mobile/Tablet tab state
   const [mobileActiveTab, setMobileActiveTab] = useState<"categories" | "products" | "cart">("products");
@@ -472,11 +477,60 @@ const ProductSelectionStepComponent = ({ onCartUpdate, pricingProfileId }: Produ
     if (newQuantity < 1) return;
     try {
       await updateQuantity(productId, newQuantity, sizeId);
+      const key = `${productId}:${sizeId}`;
+      setQuantityDrafts((prev) => {
+        if (!(key in prev)) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
       onCartUpdate?.();
     } catch (error) {
       toast({ title: "Error", description: "Failed to update quantity", variant: "destructive" });
     }
   }, [updateQuantity, onCartUpdate, toast]);
+
+  const getQuantityKey = useCallback((productId: string, sizeId: string) => `${productId}:${sizeId}`, []);
+
+  const handleQuantityDraftChange = useCallback((productId: string, sizeId: string, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    const key = getQuantityKey(productId, sizeId);
+    setQuantityDrafts((prev) => ({ ...prev, [key]: value }));
+  }, [getQuantityKey]);
+
+  const getPriceKey = useCallback((productId: string, sizeId: string) => `${productId}:${sizeId}`, []);
+
+  const handlePriceDraftChange = useCallback((productId: string, sizeId: string, value: string) => {
+    if (!/^\d*\.?\d{0,2}$/.test(value)) return;
+    const key = getPriceKey(productId, sizeId);
+    setPriceDrafts((prev) => ({ ...prev, [key]: value }));
+  }, [getPriceKey]);
+
+  const commitPriceDraft = useCallback((productId: string, sizeId: string, fallbackPrice: number) => {
+    const key = getPriceKey(productId, sizeId);
+    const rawValue = (priceDrafts[key] ?? "").trim();
+    const parsed = Number.parseFloat(rawValue);
+    const nextPrice = Number.isFinite(parsed) && parsed >= 0 ? parsed : Math.max(0, fallbackPrice);
+    dispatch(updateCartPrice(productId, sizeId, Number(nextPrice.toFixed(2))));
+    setPriceDrafts((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, [dispatch, getPriceKey, priceDrafts]);
+
+  const commitQuantityDraft = useCallback(async (productId: string, sizeId: string, fallbackQuantity: number) => {
+    const key = getQuantityKey(productId, sizeId);
+    const rawValue = quantityDrafts[key];
+    const parsed = Number.parseInt(rawValue ?? "", 10);
+    const nextQuantity = Number.isFinite(parsed) && parsed > 0 ? parsed : Math.max(1, fallbackQuantity);
+    await handleQuantityChange(productId, sizeId, nextQuantity);
+    setQuantityDrafts((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, [getQuantityKey, handleQuantityChange, quantityDrafts]);
 
   // Remove item
   const handleRemoveItem = useCallback(async (productId: string) => {
@@ -792,10 +846,43 @@ const ProductSelectionStepComponent = ({ onCartUpdate, pricingProfileId }: Produ
                                   <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity - 1)} disabled={size.quantity <= 1}>
                                     <Minus className="w-4 h-4" />
                                   </Button>
-                                  <span className="w-14 text-center text-base font-semibold">{size.quantity}</span>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    value={quantityDrafts[getQuantityKey(item.productId, size.id)] ?? String(size.quantity)}
+                                    onChange={(e) => handleQuantityDraftChange(item.productId, size.id, e.target.value)}
+                                    onBlur={() => commitQuantityDraft(item.productId, size.id, size.quantity)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        (e.target as HTMLInputElement).blur();
+                                      }
+                                    }}
+                                    className="h-10 w-20 min-w-[5rem] border-0 rounded-none px-1 text-center text-base font-semibold tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  />
                                   <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)}>
                                     <Plus className="w-4 h-4" />
                                   </Button>
+                                </div>
+                              </div>
+                              <div className="mt-2 flex items-center justify-between gap-2">
+                                <span className="text-xs text-gray-500">Unit Price</span>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-gray-500">$</span>
+                                  <Input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={priceDrafts[getPriceKey(item.productId, size.id)] ?? Number(size.price || 0).toFixed(2)}
+                                    onChange={(e) => handlePriceDraftChange(item.productId, size.id, e.target.value)}
+                                    onBlur={() => commitPriceDraft(item.productId, size.id, Number(size.price || 0))}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        (e.target as HTMLInputElement).blur();
+                                      }
+                                    }}
+                                    className="h-8 w-24 text-right text-sm"
+                                  />
                                 </div>
                               </div>
                             </div>
@@ -833,10 +920,43 @@ const ProductSelectionStepComponent = ({ onCartUpdate, pricingProfileId }: Produ
                                   <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity - 1)} disabled={size.quantity <= 1}>
                                     <Minus className="w-4 h-4" />
                                   </Button>
-                                  <span className="w-14 text-center text-base font-semibold">{size.quantity}</span>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    value={quantityDrafts[getQuantityKey(item.productId, size.id)] ?? String(size.quantity)}
+                                    onChange={(e) => handleQuantityDraftChange(item.productId, size.id, e.target.value)}
+                                    onBlur={() => commitQuantityDraft(item.productId, size.id, size.quantity)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        (e.target as HTMLInputElement).blur();
+                                      }
+                                    }}
+                                    className="h-10 w-20 min-w-[5rem] border-0 rounded-none px-1 text-center text-base font-semibold tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  />
                                   <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)}>
                                     <Plus className="w-4 h-4" />
                                   </Button>
+                                </div>
+                              </div>
+                              <div className="mt-2 flex items-center justify-between gap-2">
+                                <span className="text-xs text-gray-500">Unit Price</span>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-gray-500">$</span>
+                                  <Input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={priceDrafts[getPriceKey(item.productId, size.id)] ?? Number(size.price || 0).toFixed(2)}
+                                    onChange={(e) => handlePriceDraftChange(item.productId, size.id, e.target.value)}
+                                    onBlur={() => commitPriceDraft(item.productId, size.id, Number(size.price || 0))}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        (e.target as HTMLInputElement).blur();
+                                      }
+                                    }}
+                                    className="h-8 w-24 text-right text-sm"
+                                  />
                                 </div>
                               </div>
                             </div>
@@ -1123,7 +1243,23 @@ const ProductSelectionStepComponent = ({ onCartUpdate, pricingProfileId }: Produ
                               >
                                 <Minus className={cn(isLaptop ? "w-2.5 h-2.5" : "w-4 h-4")} />
                               </Button>
-                              <span className={cn("text-center font-semibold", isLaptop ? "w-6 text-[11px]" : "w-12 text-base")}>{size.quantity}</span>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={quantityDrafts[getQuantityKey(item.productId, size.id)] ?? String(size.quantity)}
+                                onChange={(e) => handleQuantityDraftChange(item.productId, size.id, e.target.value)}
+                                onBlur={() => commitQuantityDraft(item.productId, size.id, size.quantity)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                className={cn(
+                                  "border-0 rounded-none text-center font-semibold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                                  isLaptop ? "h-5 w-10 min-w-[2.5rem] text-[11px]" : "h-8 w-20 min-w-[5rem] px-1 text-base"
+                                )}
+                              />
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
@@ -1132,6 +1268,26 @@ const ProductSelectionStepComponent = ({ onCartUpdate, pricingProfileId }: Produ
                               >
                                 <Plus className={cn(isLaptop ? "w-2.5 h-2.5" : "w-4 h-4")} />
                               </Button>
+                            </div>
+                          </div>
+                          <div className={cn("mt-1 flex items-center justify-between gap-2", isLaptop ? "text-[9px]" : "text-xs")}>
+                            <span className="text-gray-500">Unit Price</span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-500">$</span>
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                value={priceDrafts[getPriceKey(item.productId, size.id)] ?? Number(size.price || 0).toFixed(2)}
+                                onChange={(e) => handlePriceDraftChange(item.productId, size.id, e.target.value)}
+                                onBlur={() => commitPriceDraft(item.productId, size.id, Number(size.price || 0))}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                className={cn(isLaptop ? "h-5 w-16 px-1 text-[10px] text-right" : "h-8 w-24 text-right text-sm")}
+                              />
                             </div>
                           </div>
                         </div>

@@ -32,7 +32,6 @@ import {
   AdminDocumentSettings,
   DEFAULT_ADMIN_DOCUMENT_SETTINGS,
   fetchAdminDocumentSettings,
-  formatDocumentAddressLine,
 } from "@/lib/documentSettings";
 import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
 import { fetchOrderedCategories, fetchOrderedSubcategories } from "@/services/productTreeService";
@@ -43,11 +42,6 @@ const MANUAL_NO_UNIT_VALUE = "__no_unit__";
 interface CreatePurchaseOrderFormProps {
   vendorId: string;
 }
-
-const SHIPPING_METHOD_OPTIONS = [
-  { value: "FedEx", label: "FedEx" },
-  { value: "custom", label: "Custom" },
-];
 
 type WarehouseAddressErrors = Partial<Record<
   "name" | "email" | "phone" | "street" | "city" | "state" | "zipCode" | "country",
@@ -123,6 +117,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const poSubmitModeRef = useRef<"save_only" | "save_and_email">("save_and_email");
   const [isPoCartInitialized, setIsPoCartInitialized] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [modalIsOpen, setModalIsOpen] = useState(false);
@@ -164,6 +159,9 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   const [sizeSelections, setSizeSelections] = useState<Record<string, number>>({});
   const [sizePriceOverrides, setSizePriceOverrides] = useState<Record<string, string>>({});
   const hasInitializedPoCartRef = useRef(false);
+  const updatePoSubmitMode = (mode: "save_only" | "save_and_email") => {
+    poSubmitModeRef.current = mode;
+  };
   const [manualProduct, setManualProduct] = useState({
     category: "",
     subcategory: "",
@@ -387,11 +385,6 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   }, [dispatch, form]);
 
   useEffect(() => {
-    const shippingMethod = form.getValues("shipping.method");
-    if (!SHIPPING_METHOD_OPTIONS.some((option) => option.value === shippingMethod)) {
-      form.setValue("shipping.method", "FedEx");
-    }
-
     form.setValue("payment.method", "manual");
 
     const estimatedDelivery = form.getValues("shipping.estimatedDelivery");
@@ -420,7 +413,14 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   }, [form]);
 
   const warehouseAddress = documentSettings.warehouse;
-  const warehouseAddressLine = formatDocumentAddressLine(warehouseAddress);
+  const warehouseAddressLine = [
+    warehouseAddress.street,
+    warehouseAddress.suite,
+    [warehouseAddress.city, warehouseAddress.state, warehouseAddress.zipCode].filter(Boolean).join(", "),
+    warehouseAddress.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   function applyWarehouseAddressToForm(warehouse: AdminDocumentSettings["warehouse"]) {
     form.setValue("shippingAddress", {
@@ -509,15 +509,6 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       return;
     }
 
-    if (!userProfile?.id) {
-      toast({
-        title: "Error",
-        description: "Admin profile not found. Please log in again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsSavingWarehouseAddress(true);
 
     try {
@@ -535,25 +526,6 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         country: editableWarehouseAddress.country.trim(),
       };
 
-      // Update global warehouse settings (organization-wide)
-      const { error } = await supabase
-        .from("settings")
-        .update({
-          warehouse_name: updatedWarehouse.name,
-          warehouse_email: updatedWarehouse.email,
-          warehouse_phone: updatedWarehouse.phone,
-          warehouse_street: updatedWarehouse.street,
-          warehouse_suite: updatedWarehouse.suite,
-          warehouse_city: updatedWarehouse.city,
-          warehouse_state: updatedWarehouse.state,
-          warehouse_zip_code: updatedWarehouse.zipCode,
-          warehouse_country: updatedWarehouse.country,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("is_global", true);
-
-      if (error) throw error;
-
       const nextSettings = {
         ...documentSettings,
         warehouse: updatedWarehouse,
@@ -567,7 +539,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
 
       toast({
         title: "Delivery Address Updated",
-        description: "Warehouse delivery address has been updated successfully.",
+        description: "This delivery address will be used only for the current purchase order.",
       });
     } catch (error) {
       console.error("Error updating warehouse delivery address:", error);
@@ -636,7 +608,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
     console.log("📦 Cart items synced to form:", cartItems);
   }, [cartItems, form, isPoCartInitialized]);
 
-  const calculateOrderTotal = (items: any[], shippingCost: number) => {
+  const calculateOrderTotal = (items: any[]) => {
     const itemsTotal = items.reduce((total, item) => {
       const itemTotal = item.sizes?.reduce(
         (sum: number, size: any) => sum + size.quantity * size.price,
@@ -644,7 +616,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       ) || 0;
       return total + itemTotal;
     }, 0);
-    return itemsTotal + shippingCost;
+    return itemsTotal;
   };
 
   // Handle price editing for a specific size
@@ -913,8 +885,35 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       }
 
       // Calculate totals
-      const shippingCost = parseFloat(data.shipping?.cost?.toString() || "0");
-      const totalAmount = calculateOrderTotal(cartItems, shippingCost);
+      const totalAmount = calculateOrderTotal(cartItems);
+
+      const effectiveWarehouseAddress = isEditingWarehouseAddress
+        ? {
+            ...editableWarehouseAddress,
+            name: editableWarehouseAddress.name.trim(),
+            email: editableWarehouseAddress.email.trim(),
+            phone: editableWarehouseAddress.phone.trim(),
+            street: editableWarehouseAddress.street.trim(),
+            suite: editableWarehouseAddress.suite.trim(),
+            city: editableWarehouseAddress.city.trim(),
+            state: editableWarehouseAddress.state.trim(),
+            zipCode: editableWarehouseAddress.zipCode.trim(),
+            country: editableWarehouseAddress.country.trim(),
+          }
+        : warehouseAddress;
+
+      const orderShippingAddress = {
+        fullName: effectiveWarehouseAddress.name,
+        email: effectiveWarehouseAddress.email,
+        phone: effectiveWarehouseAddress.phone,
+        address: {
+          street: [effectiveWarehouseAddress.street, effectiveWarehouseAddress.suite].filter(Boolean).join(", "),
+          city: effectiveWarehouseAddress.city,
+          state: effectiveWarehouseAddress.state,
+          zip_code: effectiveWarehouseAddress.zipCode,
+          country: effectiveWarehouseAddress.country,
+        },
+      };
 
       // Generate PO number
       let poNumber = await generatePurchaseOrderId();
@@ -929,12 +928,11 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         profile_id: vendorId, // Vendor is the "customer" for PO
         status: data.status,
         total_amount: totalAmount,
-        shipping_cost: shippingCost,
+        shipping_cost: 0,
         tax_amount: 0, // No tax on PO
         customization: false,
         items: cartItems,
         notes: data.specialInstructions,
-        shipping_method: data.shipping?.method,
         customerInfo: {
           ...data.customerInfo,
           address: {
@@ -946,8 +944,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
             country: vendorInfo?.billing_address?.country || vendorInfo?.billing_address?.countryRegion || "",
           },
         },
-        shippingAddress: data.shippingAddress,
-        tracking_number: data.shipping?.trackingNumber,
+        shippingAddress: orderShippingAddress,
         estimated_delivery:
           data.shipping?.estimatedDelivery ||
           new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
@@ -1084,15 +1081,17 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         console.error("Failed to log PO creation activity:", activityError);
       }
 
-      try {
-        await sendPurchaseOrderEmail(poResponse.id, "created", data.payment?.includePricingInPdf !== false);
-      } catch (emailError) {
-        console.error("Failed to send PO email to vendor:", emailError);
-        toast({
-          title: "PO created, email not sent",
-          description: "The purchase order was saved, but the vendor email could not be delivered.",
-          variant: "destructive",
-        });
+      if (poSubmitModeRef.current === "save_and_email") {
+        try {
+          await sendPurchaseOrderEmail(poResponse.id, "created", data.payment?.includePricingInPdf !== false);
+        } catch (emailError) {
+          console.error("Failed to send PO email to vendor:", emailError);
+          toast({
+            title: "PO created, email not sent",
+            description: "The purchase order was saved, but the vendor email could not be delivered.",
+            variant: "destructive",
+          });
+        }
       }
 
       // Clear cart and navigate
@@ -1102,7 +1101,10 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
 
       toast({
         title: "Purchase Order Created",
-        description: `PO ${poNumber} has been created successfully.`,
+        description:
+          poSubmitModeRef.current === "save_and_email"
+            ? `PO ${poNumber} has been created and emailed to vendor.`
+            : `PO ${poNumber} has been saved successfully.`,
       });
 
       navigate("/admin/po");
@@ -1139,6 +1141,17 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
     });
   };
 
+
+  const handlePoSaveOnlySubmit = () => {
+    updatePoSubmitMode("save_only");
+    void form.handleSubmit(onSubmit, onInvalidSubmit)();
+  };
+
+  const handlePoSaveAndEmailSubmit = () => {
+    updatePoSubmitMode("save_and_email");
+    void form.handleSubmit(onSubmit, onInvalidSubmit)();
+  };
+
   if (loadingVendor || !isPoCartInitialized) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -1159,7 +1172,6 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
     return sum + itemTotal;
   }, 0);
 
-  const shippingCost = Number(form.watch("shipping.cost") || 0);
   const totalQuantity = cartItems.reduce(
     (sum, item) =>
       sum +
@@ -1218,7 +1230,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
             </div>
             <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
               <p className="text-xs uppercase tracking-wide text-blue-100">Estimated Total</p>
-              <p className="mt-2 text-2xl font-semibold">${(subtotal + shippingCost).toFixed(2)}</p>
+              <p className="mt-2 text-2xl font-semibold">${subtotal.toFixed(2)}</p>
             </div>
           </div>
         </CardContent>
@@ -1436,30 +1448,6 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="shipping.method"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Shipping Method</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || "FedEx"}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select shipping method" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {SHIPPING_METHOD_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="shipping.estimatedDelivery"
@@ -1705,6 +1693,8 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
             setIsCus={setIsCus}
             isCus={isCus}
             poIs={true}
+            onPoSaveOnlyClick={handlePoSaveOnlySubmit}
+            onPoSaveAndEmailClick={handlePoSaveAndEmailSubmit}
           />
         </form>
       </Form>
@@ -1748,13 +1738,9 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                   <span>Subtotal</span>
                   <span>${subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm text-slate-600">
-                  <span>Shipping</span>
-                  <span>${shippingCost.toFixed(2)}</span>
-                </div>
                 <div className="flex items-center justify-between border-t pt-3 text-base font-semibold text-slate-900">
                   <span>Total</span>
-                  <span>${(subtotal + shippingCost).toFixed(2)}</span>
+                  <span>${subtotal.toFixed(2)}</span>
                 </div>
               </div>
             </CardContent>
