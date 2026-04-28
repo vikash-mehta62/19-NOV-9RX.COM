@@ -3,28 +3,48 @@ import { useForm } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 
 interface InvoiceData {
   id: number;
   order_no: number;
   invoice_no: number;
+  purchase_no: number;
+  sales_order_no: number;
   order_start: string;
   invoice_start: string;
+  purchase_start: string;
+  sales_order_start: string;
 }
 
 export function InvoiceSection() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
   const { toast } = useToast();
 
   const form = useForm({
     defaultValues: {
+      order_no: 0,
+      invoice_no: 0,
+      purchase_no: 0,
       invoice_start: "",
       order_start: "",
+      purchase_start: "",
+      sales_order_start: "",
     },
   });
 
@@ -49,8 +69,13 @@ export function InvoiceSection() {
       if (!data) {
         setInvoiceData(null);
         form.reset({
+          order_no: 0,
+          invoice_no: 0,
+          purchase_no: 0,
           invoice_start: "",
           order_start: "",
+          purchase_start: "",
+          sales_order_start: "",
         });
         setLoading(false);
         return;
@@ -58,8 +83,13 @@ export function InvoiceSection() {
 
       setInvoiceData(data);
       form.reset({
+        order_no: data.order_no ?? 0,
+        invoice_no: data.invoice_no ?? 0,
+        purchase_no: data.purchase_no ?? 0,
         invoice_start: data.invoice_start ?? "",
         order_start: data.order_start ?? "",
+        purchase_start: data.purchase_start ?? "",
+        sales_order_start: data.sales_order_start ?? "",
       });
 
       setLoading(false);
@@ -68,15 +98,28 @@ export function InvoiceSection() {
     fetchData();
   }, []);
 
-  const onSubmit = async (values: { invoice_start: string; order_start: string }) => {
+  const onSubmit = async (values: {
+    order_no: number;
+    invoice_no: number;
+    purchase_no: number;
+    invoice_start: string;
+    order_start: string;
+    purchase_start: string;
+    sales_order_start: string;
+  }) => {
     if (!invoiceData) return;
 
     setUpdating(true);
     const { error } = await supabase
       .from("centerize_data")
       .update({
+        order_no: values.order_no,
+        invoice_no: values.invoice_no,
+        purchase_no: values.purchase_no,
         invoice_start: values.invoice_start,
         order_start: values.order_start,
+        purchase_start: values.purchase_start,
+        sales_order_start: values.sales_order_start,
       })
       .eq("id", invoiceData.id);
 
@@ -84,7 +127,22 @@ export function InvoiceSection() {
       console.error("Update error:", error);
       toast({ title: "Update Failed", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Success", description: "Invoice & Order Prefix Updated Successfully" });
+      setInvoiceData((current) =>
+        current
+          ? {
+              ...current,
+              order_no: values.order_no,
+              invoice_no: values.invoice_no,
+              purchase_no: values.purchase_no,
+              invoice_start: values.invoice_start,
+              order_start: values.order_start,
+              purchase_start: values.purchase_start,
+              sales_order_start: values.sales_order_start,
+            }
+          : current
+      );
+      setConfirmOpen(false);
+      toast({ title: "Success", description: "Document prefixes updated successfully" });
     }
     setUpdating(false);
   };
@@ -100,19 +158,33 @@ export function InvoiceSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Invoice Settings</CardTitle>
+        <CardTitle>Order, Invoice & PO Settings</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {invoiceData && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="text-sm font-medium">Order No</label>
-              <Input value={invoiceData.order_no} readOnly className="bg-gray-100" />
+              <Input
+                type="number"
+                {...form.register("order_no", { valueAsNumber: true })}
+              />
             </div>
 
             <div>
               <label className="text-sm font-medium">Invoice No</label>
-              <Input value={invoiceData.invoice_no} readOnly className="bg-gray-100" />
+              <Input
+                type="number"
+                {...form.register("invoice_no", { valueAsNumber: true })}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Purchase Order No</label>
+              <Input
+                type="number"
+                {...form.register("purchase_no", { valueAsNumber: true })}
+              />
             </div>
 
             <div>
@@ -124,17 +196,73 @@ export function InvoiceSection() {
               <label className="text-sm font-medium">Invoice Prefix</label>
               <Input {...form.register("invoice_start")} />
             </div>
+
           </div>
         )}
         {!invoiceData && (
           <p className="text-sm text-muted-foreground">
-            Invoice prefix configuration is not available for your current access.
+            Document numbering configuration is not available for your current access.
           </p>
         )}
 
-        <Button className="w-full md:w-auto" onClick={form.handleSubmit(onSubmit)} disabled={updating || !invoiceData}>
-          {updating ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : "Update Prefixes"}
+        <Button
+          type="button"
+          className="w-full md:w-auto"
+          onClick={() => setConfirmOpen(true)}
+          disabled={updating || !invoiceData}
+        >
+          Update Prefixes
         </Button>
+
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent className="sm:max-w-lg overflow-hidden border-0 p-0 shadow-2xl">
+            <div className="bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 px-6 py-5 text-white">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-white/20 p-2">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <AlertDialogTitle className="text-xl font-semibold">
+                  Are You Sure You Want To Make This Change?
+                </AlertDialogTitle>
+              </div>
+            </div>
+
+            <AlertDialogHeader className="px-6 pt-5">
+              <AlertDialogDescription className="space-y-3 text-sm leading-6 text-slate-600">
+                <p>
+                  You are about to update order and invoice numbering settings.
+                </p>
+                <p>
+                  This can affect future generated document numbers and may create confusion if changed incorrectly.
+                </p>
+                <p className="font-medium text-slate-900">
+                  Please confirm that these values are correct before continuing.
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <AlertDialogFooter className="px-6 pb-6 pt-2">
+              <AlertDialogCancel type="button" className="rounded-xl" disabled={updating}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                type="button"
+                onClick={form.handleSubmit(onSubmit)}
+                disabled={updating}
+                className="rounded-xl bg-blue-600 hover:bg-blue-700"
+              >
+                {updating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Yes, Update Prefixes"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );

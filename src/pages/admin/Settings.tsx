@@ -5,11 +5,9 @@ import { BusinessProfileSection } from "@/components/settings/BusinessProfileSec
 import { LocationContactSection } from "@/components/settings/LocationContactSection";
 import { SecuritySection } from "@/components/settings/SecuritySection";
 import { InvoiceSection } from "@/components/settings/InvoiceSection";
-import { InvoiceTemplateSection } from "@/components/settings/InvoiceTemplateSection";
 import { PaymentSection } from "@/components/settings/PaymentSectionEnhanced";
 import { TaxSettingsSection } from "@/components/settings/TaxSettingsSection";
 import { ShippingSettingsSection } from "@/components/settings/ShippingSettingsSection";
-import { OrderSettingsSection } from "@/components/settings/OrderSettingsSection";
 import { EmailSettingsSection } from "@/components/settings/EmailSettingsSection";
 import { StoreHoursSection } from "@/components/settings/StoreHoursSection";
 import { SocialMediaSection } from "@/components/settings/SocialMediaSection";
@@ -552,7 +550,7 @@ export default function Settings() {
           <form onSubmit={form.handleSubmit(handleSubmit)}>
             <Tabs defaultValue="business" className="space-y-6">
               <div className="space-y-2">
-                <TabsList className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-1 h-auto p-1 w-full">
+                <TabsList className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-1 h-auto p-1 w-full">
                   <TabsTrigger value="business" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Building2 className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Business</span>
@@ -563,11 +561,7 @@ export default function Settings() {
                   </TabsTrigger>
                   <TabsTrigger value="orders" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Settings2 className="h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">Orders</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="invoices" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
-                    <FileText className="h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">Invoices</span>
+                    <span className="truncate">Orders & Invoices</span>
                   </TabsTrigger>
                   <TabsTrigger value="shipping" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Truck className="h-4 w-4 flex-shrink-0" />
@@ -628,7 +622,7 @@ export default function Settings() {
 
               {/* Orders Tab */}
               <TabsContent value="orders" className="space-y-6">
-                <OrderSettingsSection form={form} />
+                <InvoiceSection />
 
                 {/* TODO: Tax Settings */}
                 {/* <TaxSettingsSection form={form} /> */}
@@ -649,12 +643,6 @@ export default function Settings() {
               {/* Payments Tab */}
               <TabsContent value="payments" className="space-y-6">
                 <PaymentSection form={form} />
-              </TabsContent>
-
-              {/* Invoices Tab */}
-              <TabsContent value="invoices" className="space-y-6">
-                <InvoiceSection />
-                <InvoiceTemplateSection form={form} />
               </TabsContent>
 
               {/* Email Tab */}
