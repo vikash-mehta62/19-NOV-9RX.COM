@@ -3552,16 +3552,17 @@ export const OrderDetailsSheet = ({
         po_fred_charges: Number.isFinite(freightCharges) ? freightCharges : 0,
       });
 
-      try {
-        await sendPurchaseOrderEmail(currentOrder.id, "updated", poFinance.includePricingInPdf !== false);
-      } catch (emailError) {
-        console.error("Failed to send updated PO email to vendor:", emailError);
-        toast({
-          title: "Schedule saved, email not sent",
-          description: "The purchase order was updated, but the vendor email could not be delivered.",
-          variant: "destructive",
-        });
-      }
+      // Email sending on "Save Schedule" is intentionally disabled for now.
+      // try {
+      //   await sendPurchaseOrderEmail(currentOrder.id, "updated", poFinance.includePricingInPdf !== false);
+      // } catch (emailError) {
+      //   console.error("Failed to send updated PO email to vendor:", emailError);
+      //   toast({
+      //     title: "Schedule saved, email not sent",
+      //     description: "The purchase order was updated, but the vendor email could not be delivered.",
+      //     variant: "destructive",
+      //   });
+      // }
 
       toast({
         title: "Schedule saved",
