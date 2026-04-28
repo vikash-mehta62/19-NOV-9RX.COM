@@ -53,8 +53,10 @@ export function CreatePurchaseOrderDialog() {
         .from("profiles")
         .select("id, first_name, last_name, company_name, email, type, status")
         .eq("type", "vendor")
-        .eq("status", "active")
+        .in("status", ["active", "inactive"]) // now fetching both active & inactive vendors.
         .order("company_name", { ascending: true });
+  
+      // console.log("VENDORS DATA: ", data);
 
       if (error) throw error;
 
