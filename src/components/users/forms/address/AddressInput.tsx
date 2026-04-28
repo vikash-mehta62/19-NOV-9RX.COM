@@ -8,12 +8,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { UseFormReturn } from "react-hook-form";
 import { UserFormData } from "../../schemas/userFormSchemas";
+import type { InputHTMLAttributes } from "react";
 
 interface AddressInputProps {
   form: UseFormReturn<UserFormData>;
   fieldName: string;
   label: string;
   type?: string;
+  inputProps?: InputHTMLAttributes<HTMLInputElement>;
 }
 
 export function AddressInput({
@@ -21,6 +23,7 @@ export function AddressInput({
   fieldName,
   label,
   type = "text",
+  inputProps,
 }: AddressInputProps) {
   // Create a valid HTML id from the fieldName by replacing dots with dashes
   const inputId = fieldName.replace(/\./g, "-");
@@ -45,10 +48,15 @@ export function AddressInput({
           <FormControl>
             <Input
               {...field}
+              {...inputProps}
               id={inputId}
-              name={inputId}
+              name={field.name}
               type={type}
               autoComplete={getAutocomplete()}
+              onChange={(e) => {
+                field.onChange(e);
+                inputProps?.onChange?.(e);
+              }}
             />
           </FormControl>
           <FormMessage />

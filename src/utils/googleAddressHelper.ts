@@ -100,7 +100,23 @@ export const getAddressPredictions = (
 
     const placesApi = window.google.maps.places;
 
-    // Preferred API for new projects.
+    // Use legacy Places JS Autocomplete first. This works without enabling Places API (New).
+    if (placesApi.AutocompleteService) {
+      const service = new placesApi.AutocompleteService();
+      service.getPlacePredictions(
+        {
+          input,
+          types: ["geocode", "establishment"],
+          componentRestrictions: { country: "us" },
+        },
+        (predictions: any[]) => {
+          callback(predictions || []);
+        }
+      );
+      return;
+    }
+
+    // Secondary fallback: Places API (New), if available and enabled.
     if (placesApi.AutocompleteSuggestion?.fetchAutocompleteSuggestions) {
       try {
         const response = await placesApi.AutocompleteSuggestion.fetchAutocompleteSuggestions(
@@ -124,25 +140,10 @@ export const getAddressPredictions = (
 
         callback(predictions);
         return;
-      } catch (error) {
-        console.error("AutocompleteSuggestion failed, falling back:", error);
+      } catch {
+        callback([]);
+        return;
       }
-    }
-
-    // Backward-compatible fallback for older projects.
-    if (placesApi.AutocompleteService) {
-      const service = new placesApi.AutocompleteService();
-      service.getPlacePredictions(
-        {
-          input,
-          types: ["geocode", "establishment"],
-          componentRestrictions: { country: "us" },
-        },
-        (predictions: any[]) => {
-          callback(predictions || []);
-        }
-      );
-      return;
     }
 
     callback([]);

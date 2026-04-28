@@ -44,11 +44,11 @@ export function AddressFields({ form, type, prefix = "" }: AddressFieldsProps) {
           form={form}
           fieldName={fieldName("street1")}
           label="Street Address 1 *"
-          {...form.register(fieldName("street1"), {
+          inputProps={{
             onChange: (e) => {
               getAddressPredictions(e.target.value, setStreet1Suggestions);
             },
-          })}
+          }}
         />
         {street1Suggestions.length > 0 && (
           <ul className="absolute left-0 w-full bg-white border shadow-lg z-50 mt-1 max-h-60 overflow-y-auto">
