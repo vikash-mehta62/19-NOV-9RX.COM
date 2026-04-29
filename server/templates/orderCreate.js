@@ -14,6 +14,8 @@ const orderConfirmationTemplate = (order) => {
     status = "new",
     processing_fee_amount = 0
   } = order;
+  const frontendUrl = process.env.FRONTEND_URL || "https://9rx.com";
+  const reviewUrl = `${frontendUrl}/login?redirect=${encodeURIComponent('/pharmacy/orders')}`;
 
   const formatCurrency = (amount) => {
     const num = parseFloat(amount) || 0;
@@ -268,7 +270,7 @@ const orderConfirmationTemplate = (order) => {
 
                             <!-- CTA Button -->
                             <div style="padding: 0 30px 35px; text-align: center;">
-	                                <a href="https://9rx.com/pharmacy/orders" 
+	                                <a href=${reviewUrl}
 	                                   style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 12px; font-size: 16px; font-weight: 600;">
                                     📋 View My Orders
                                 </a>

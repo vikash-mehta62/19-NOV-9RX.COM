@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import CustomProductForm from "@/components/orders/Customitems";
 import {
   User,
   MapPin,
@@ -10,6 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
   Plus,
+  Minus,
 } from "lucide-react";
 import { useState } from "react";
 import type { Customer, BillingAddress, ShippingAddress } from "../types";
@@ -54,6 +56,7 @@ export const ReviewOrderStep = ({
   hideOrderItems = false,
 }: ReviewOrderStepProps) => {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [showManualItemForm, setShowManualItemForm] = useState(false);
   
   // Get fresh cart items from hook to ensure latest state
   const { cartItems: hookCartItems } = useCart();
@@ -227,8 +230,17 @@ export const ReviewOrderStep = ({
             </div>
             <div className="flex items-center gap-2">
               {onAddManualItem && (
-                <Button variant="outline" size="sm" onClick={onAddManualItem}>
-                  <Plus className="h-4 w-4 mr-2" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowManualItemForm((prev) => !prev)}
+                  className="h-8 gap-1.5 px-3 text-xs"
+                >
+                  {showManualItemForm ? (
+                    <Minus className="h-3.5 w-3.5" />
+                  ) : (
+                    <Plus className="h-3.5 w-3.5" />
+                  )}
                   Manual Item
                 </Button>
               )}
@@ -240,6 +252,16 @@ export const ReviewOrderStep = ({
           </div>
         </CardHeader>
         <CardContent>
+          {showManualItemForm && onAddManualItem && (
+            <div className="mb-4">
+              <CustomProductForm
+                isOpen={showManualItemForm}
+                onClose={() => setShowManualItemForm(false)}
+                variant="inline"
+                compact={true}
+              />
+            </div>
+          )}
           {cartItems.length > 0 ? (
             <div className="max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
               <div className="space-y-4">
@@ -310,7 +332,15 @@ export const ReviewOrderStep = ({
                                   Size Details:
                                 </p>
                                 <div className="space-y-2">
-                                  {item.sizes.map((size: any, index: number) => (
+                                  {item.sizes.map((size: {
+                                    id?: string;
+                                    size_value?: string | number;
+                                    size_unit?: string;
+                                    type?: string;
+                                    sku?: string;
+                                    quantity?: number;
+                                    price?: number;
+                                  }, index: number) => (
                                     <div
                                       key={`${size.id}-${index}`}
                                       className="flex items-center justify-between bg-white p-2 rounded text-sm"

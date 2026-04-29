@@ -115,7 +115,7 @@ const OrderCreationWizardComponent = ({
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [addCustomerModalOpen, setAddCustomerModalOpen] = useState(false);
   const [customerRefreshKey, setCustomerRefreshKey] = useState(0);
-  const [manualItemRequestKey, setManualItemRequestKey] = useState(0);
+  const [manualItemRequestPending, setManualItemRequestPending] = useState(false);
   const wizardSectionRef = useRef<HTMLElement | null>(null);
   
   // Discount state
@@ -1183,7 +1183,7 @@ const OrderCreationWizardComponent = ({
       return;
     }
 
-    setManualItemRequestKey((prev) => prev + 1);
+    setManualItemRequestPending(true);
     wizardState.goToStep(3);
     scrollAfterStepChange();
   }, [isPharmacyMode, scrollAfterStepChange, userType, wizardState]);
@@ -1380,7 +1380,8 @@ const OrderCreationWizardComponent = ({
             onCartUpdate={onCartUpdate}
             pricingProfileId={selectedCustomer?.id}
             allowManualItems={userType === "admin"}
-            openManualItemRequestKey={manualItemRequestKey}
+            openManualItemRequested={manualItemRequestPending}
+            onManualItemRequestHandled={() => setManualItemRequestPending(false)}
           />
         );
       case 4:

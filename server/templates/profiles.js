@@ -27,6 +27,8 @@ const passwordResetTemplate = (name) => {
 
 const profileUpdateTemplate = (name, email) => {
     const currentYear = new Date().getFullYear();
+    const frontendUrl = process.env.FRONTEND_URL || "https://9rx.com";
+    const reviewUrl = `${frontendUrl}/login?redirect=${encodeURIComponent('/pharmacy/settings/update-profile')}`;
     const updateDate = new Date().toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
@@ -121,7 +123,7 @@ const profileUpdateTemplate = (name, email) => {
 
                             <!-- CTA Button -->
                             <div style="padding: 0 30px 35px; text-align: center;">
-                                <a href="https://9rx.com/update-profile" 
+                                <a href=${reviewUrl} 
                                    style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 12px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);">
                                     👤 View My Profile
                                 </a>

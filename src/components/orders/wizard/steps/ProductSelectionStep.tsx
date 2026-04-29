@@ -104,7 +104,8 @@ export interface ProductSelectionStepProps {
   onCartUpdate?: () => void;
   pricingProfileId?: string | null;
   allowManualItems?: boolean;
-  openManualItemRequestKey?: number;
+  openManualItemRequested?: boolean;
+  onManualItemRequestHandled?: () => void;
 }
 
 // Optimized products fetcher with React Query
@@ -184,7 +185,8 @@ const ProductSelectionStepComponent = ({
   onCartUpdate,
   pricingProfileId,
   allowManualItems = false,
-  openManualItemRequestKey = 0,
+  openManualItemRequested = false,
+  onManualItemRequestHandled,
 }: ProductSelectionStepProps) => {
   const { toast } = useToast();
   const { cartItems, addToCart, removeFromCart, updateQuantity, updateDescription } = useCart();
@@ -255,10 +257,11 @@ const ProductSelectionStepComponent = ({
   }, [error, toast]);
 
   useEffect(() => {
-    if (allowManualItems && openManualItemRequestKey > 0) {
+    if (allowManualItems && openManualItemRequested) {
       setShowCustomProductDialog(true);
+      onManualItemRequestHandled?.();
     }
-  }, [allowManualItems, openManualItemRequestKey]);
+  }, [allowManualItems, onManualItemRequestHandled, openManualItemRequested]);
 
   // Build category structure from products
   const categories = useMemo(() => {

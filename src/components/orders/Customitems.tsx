@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { CartItem } from "@/store/types/cartTypes";
+import { cn } from "@/lib/utils";
 
 interface CustomProductFormProps {
   isOpen: boolean;
@@ -26,6 +27,8 @@ interface CustomProductFormProps {
     setValue?: (name: string, value: unknown) => void;
   } | null;
   onAdded?: (item: CartItem) => void;
+  variant?: "dialog" | "inline";
+  compact?: boolean;
 }
 
 interface ManualItemFormState {
@@ -101,6 +104,8 @@ const CustomProductForm = ({
   isEditing = false,
   form = null,
   onAdded,
+  variant = "dialog",
+  compact = false,
 }: CustomProductFormProps) => {
   const { addToCart } = useCart();
   const { toast } = useToast();
@@ -202,6 +207,136 @@ const CustomProductForm = ({
     }
   };
 
+  if (!isOpen) {
+    return null;
+  }
+
+  const formBody = (
+    <>
+      <div
+        className={cn(
+          "grid py-2",
+          compact ? "gap-2 md:grid-cols-6" : "gap-4 md:grid-cols-6"
+        )}
+      >
+        <div className={cn("space-y-2", compact ? "md:col-span-4" : "md:col-span-4")}>
+          <Label htmlFor="manual-item-name" className={cn(compact && "text-xs")}>Name</Label>
+          <Input
+            id="manual-item-name"
+            value={values.name}
+            onChange={(e) => updateField("name", e.target.value)}
+            placeholder="Manual delivery charge, custom tray, special item..."
+            className={cn(compact && "h-8 text-xs")}
+          />
+        </div>
+
+        <div className={cn("space-y-2", compact ? "md:col-span-2" : "md:col-span-2")}>
+          <Label htmlFor="manual-item-sku" className={cn(compact && "text-xs")}>SKU</Label>
+          <Input
+            id="manual-item-sku"
+            value={values.sku}
+            onChange={(e) => updateField("sku", e.target.value)}
+            placeholder="Optional"
+            className={cn(compact && "h-8 text-xs")}
+          />
+        </div>
+
+        <div className={cn("space-y-2", compact ? "md:col-span-2" : "md:col-span-2")}>
+          <Label htmlFor="manual-item-size-unit" className={cn(compact && "text-xs")}>Size Unit</Label>
+          <Input
+            id="manual-item-size-unit"
+            value={values.sizeUnit}
+            onChange={(e) => updateField("sizeUnit", e.target.value)}
+            placeholder="box, fee, set, each..."
+            className={cn(compact && "h-8 text-xs")}
+          />
+        </div>
+
+        <div className={cn("space-y-2", compact ? "md:col-span-2" : "md:col-span-2")}>
+          <Label htmlFor="manual-item-quantity" className={cn(compact && "text-xs")}>Quantity</Label>
+          <Input
+            id="manual-item-quantity"
+            type="number"
+            min="1"
+            step="1"
+            value={values.quantity}
+            onChange={(e) => updateField("quantity", e.target.value)}
+            className={cn(compact && "h-8 text-xs")}
+          />
+        </div>
+
+        <div className={cn("space-y-2", compact ? "md:col-span-2" : "md:col-span-2")}>
+          <Label htmlFor="manual-item-unit-price" className={cn(compact && "text-xs")}>Unit Price ($)</Label>
+          <Input
+            id="manual-item-unit-price"
+            type="number"
+            min="0"
+            step="0.01"
+            value={values.unitPrice}
+            onChange={(e) => updateField("unitPrice", e.target.value)}
+            placeholder="0.00"
+            className={cn(compact && "h-8 text-xs")}
+          />
+        </div>
+
+        
+
+        <div className={cn("space-y-2", compact ? "md:col-span-3" : "md:col-span-2")}>
+          <Label htmlFor="manual-item-description" className={cn(compact && "text-xs")}>Description</Label>
+          <Textarea
+            id="manual-item-description"
+            value={values.description}
+            onChange={(e) => updateField("description", e.target.value)}
+            placeholder="Short customer-facing description"
+            className={cn(compact ? "min-h-[56px] text-xs" : "min-h-[84px]")}
+          />
+        </div>
+
+        
+      </div>
+
+      {/* <div className={cn("rounded-xl border border-slate-200 bg-slate-50", compact ? "p-3" : "p-4")}>
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <ReceiptText className="h-4 w-4 text-slate-500" />
+          Preview
+        </div>
+        <div className={cn("mt-3 grid text-slate-600 md:grid-cols-2", compact ? "gap-1.5 text-xs" : "gap-2 text-sm")}>
+          <p>Name: <span className="font-medium text-slate-900">{values.name.trim() || "Not set"}</span></p>
+          <p>SKU: <span className="font-medium text-slate-900">{values.sku.trim() || "Auto-generated"}</span></p>
+          <p>Quantity: <span className="font-medium text-slate-900">{quantity || 0}</span></p>
+          <p>Unit Price: <span className="font-medium text-slate-900">${unitPrice.toFixed(2)}</span></p>
+          <p>Shipping Cost: <span className="font-medium text-slate-900">${shippingCost.toFixed(2)}</span></p>
+          <p>Line Total: <span className="font-semibold text-blue-700">${lineTotal.toFixed(2)}</span></p>
+        </div>
+      </div> */}
+    </>
+  );
+
+  if (variant === "inline") {
+    return (
+      <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-2.5">
+        <div className="mb-1.5">
+          <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+            <Package2 className="h-3.5 w-3.5 text-blue-600" />
+            Add Manual Item
+          </div>
+          <p className="mt-0.5 text-[11px] leading-4 text-slate-500">
+            Add a custom charge or one-off product line without leaving this review step.
+          </p>
+        </div>
+        {formBody}
+        <div className="mt-2 flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting} size="sm" className="h-8 px-3 text-xs">
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={isSubmitting} size="sm" className="h-8 px-3 text-xs">
+            {isSubmitting ? "Adding..." : "Add Manual Item"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -214,133 +349,7 @@ const CustomProductForm = ({
             Create a one-off charge or product line with a manual name, SKU, quantity, price, and notes.
           </DialogDescription>
         </DialogHeader>
-
-        <div className="grid gap-4 py-2 md:grid-cols-2">
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="manual-item-name">Name</Label>
-            <Input
-              id="manual-item-name"
-              value={values.name}
-              onChange={(e) => updateField("name", e.target.value)}
-              placeholder="Manual delivery charge, custom tray, special item..."
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="manual-item-sku">SKU</Label>
-            <Input
-              id="manual-item-sku"
-              value={values.sku}
-              onChange={(e) => updateField("sku", e.target.value)}
-              placeholder="Optional"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="manual-item-size-name">Size Label</Label>
-            <Input
-              id="manual-item-size-name"
-              value={values.sizeName}
-              onChange={(e) => updateField("sizeName", e.target.value)}
-              placeholder="Defaults to item name"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="manual-item-size-value">Size Value</Label>
-            <Input
-              id="manual-item-size-value"
-              value={values.sizeValue}
-              onChange={(e) => updateField("sizeValue", e.target.value)}
-              placeholder="Standard"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="manual-item-size-unit">Size Unit</Label>
-            <Input
-              id="manual-item-size-unit"
-              value={values.sizeUnit}
-              onChange={(e) => updateField("sizeUnit", e.target.value)}
-              placeholder="box, fee, set, each..."
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="manual-item-quantity">Quantity</Label>
-            <Input
-              id="manual-item-quantity"
-              type="number"
-              min="1"
-              step="1"
-              value={values.quantity}
-              onChange={(e) => updateField("quantity", e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="manual-item-unit-price">Unit Price ($)</Label>
-            <Input
-              id="manual-item-unit-price"
-              type="number"
-              min="0"
-              step="0.01"
-              value={values.unitPrice}
-              onChange={(e) => updateField("unitPrice", e.target.value)}
-              placeholder="0.00"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="manual-item-shipping">Shipping Cost ($)</Label>
-            <Input
-              id="manual-item-shipping"
-              type="number"
-              min="0"
-              step="0.01"
-              value={values.shippingCost}
-              onChange={(e) => updateField("shippingCost", e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="manual-item-description">Description</Label>
-            <Textarea
-              id="manual-item-description"
-              value={values.description}
-              onChange={(e) => updateField("description", e.target.value)}
-              placeholder="Short customer-facing description"
-              className="min-h-[84px]"
-            />
-          </div>
-
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="manual-item-notes">Internal Notes</Label>
-            <Textarea
-              id="manual-item-notes"
-              value={values.notes}
-              onChange={(e) => updateField("notes", e.target.value)}
-              placeholder="Optional internal notes for this line item"
-              className="min-h-[84px]"
-            />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-            <ReceiptText className="h-4 w-4 text-slate-500" />
-            Preview
-          </div>
-          <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
-            <p>Name: <span className="font-medium text-slate-900">{values.name.trim() || "Not set"}</span></p>
-            <p>SKU: <span className="font-medium text-slate-900">{values.sku.trim() || "Auto-generated"}</span></p>
-            <p>Quantity: <span className="font-medium text-slate-900">{quantity || 0}</span></p>
-            <p>Unit Price: <span className="font-medium text-slate-900">${unitPrice.toFixed(2)}</span></p>
-            <p>Shipping Cost: <span className="font-medium text-slate-900">${shippingCost.toFixed(2)}</span></p>
-            <p>Line Total: <span className="font-semibold text-blue-700">${lineTotal.toFixed(2)}</span></p>
-          </div>
-        </div>
-
+        {formBody}
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
