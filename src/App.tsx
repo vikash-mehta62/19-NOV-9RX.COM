@@ -307,6 +307,23 @@ const ProtectedRoute = ({
   return <>{children}</>;
 };
 
+const DashboardRedirect = () => {
+  const isLoggedIn = sessionStorage.getItem("isLoggedIn") === "true";
+  const userType = sessionStorage.getItem("userType");
+  const routes: Record<string, string> = {
+    pharmacy: "/pharmacy/products",
+    admin: "/admin/dashboard",
+    hospital: "/hospital/dashboard",
+    group: "/group/dashboard",
+  };
+
+  if (!isLoggedIn) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Navigate to={routes[userType || ""] || "/pharmacy/products"} replace />;
+};
+
 function App() {
   const { toast } = useToast();
   const location = useLocation();
@@ -651,6 +668,7 @@ function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<Index />} />
+          <Route path="/dashboard" element={<DashboardRedirect />} />
           <Route path="/product/:id" element={<ProductDetails />} />
           <Route path="/products/:slug" element={<ProductDetails />} />
           <Route path="/login" element={<Login />} />

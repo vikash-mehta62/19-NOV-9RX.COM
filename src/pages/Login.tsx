@@ -103,6 +103,16 @@ const Login = () => {
   const searchParams = new URLSearchParams(location.search);
   const tabFromUrl = searchParams.get("tab");
   const defaultTab = tabFromUrl || location?.state?.defaultTab || "login";
+  const redirect = searchParams.get("redirect");
+  let decodedRedirect: string | null = null;
+
+  if (redirect) {
+    try {
+      decodedRedirect = decodeURIComponent(redirect);
+    } catch (error) {
+      console.warn("Failed to decode login redirect param:", error);
+    }
+  }
   
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -134,21 +144,12 @@ const Login = () => {
 
   // Redirect authenticated users
   useEffect(() => {
-    const userType = sessionStorage.getItem("userType");
     const isLoggedIn = sessionStorage.getItem("isLoggedIn");
 
-    if (isLoggedIn === "true" && userType) {
-      const routes: Record<string, string> = {
-        pharmacy: "/pharmacy/products",
-        admin: "/admin/dashboard",
-        hospital: "/hospital/dashboard",
-        group: "/group/dashboard",
-      };
-      if (routes[userType]) {
-        navigate(routes[userType]);
-      }
+    if (isLoggedIn === "true") {
+      navigate(decodedRedirect || "/dashboard", { replace: true });
     }
-  }, [navigate]);
+  }, [decodedRedirect, navigate]);
 
   const nextTestimonial = () => {
     setIsAnimating(true);

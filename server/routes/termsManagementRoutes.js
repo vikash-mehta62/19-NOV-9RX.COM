@@ -106,28 +106,52 @@ router.post("/send-credit-terms", async (req, res) => {
     }
 
     const frontendUrl = process.env.FRONTEND_URL || "https://9rx.com";
-    const reviewUrl = `${frontendUrl}/login`;
+    const reviewUrl = `${frontendUrl}/login?redirect=${encodeURIComponent('/pharmacy/credit')}`;
     const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() || "Customer";
 
     const emailHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 680px; margin: 0 auto; color: #111827;">
-        <h2 style="margin: 0 0 16px;">Credit Terms Sent for Your Signature</h2>
-        <p>Hello ${fullName},</p>
-        <p>Your credit terms are ready for review and signature.</p>
-        <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 16px 0;">
-          <p style="margin: 0 0 8px;"><strong>Credit Limit:</strong> $${Number(creditLimit).toLocaleString()}</p>
-          <p style="margin: 0 0 8px;"><strong>Net Terms:</strong> Net ${Number(netTerms)}</p>
-          <p style="margin: 0 0 8px;"><strong>Late Fee:</strong> ${Number(interestRate).toFixed(2)}% per month</p>
-          <p style="margin: 0;"><strong>Expires On:</strong> ${expiresAt.toLocaleDateString("en-US")}</p>
+      <div style="font-family: Arial, sans-serif; max-width: 680px; margin: 0 auto; color: #111827; background: #ffffff;">
+        <div style="background: #eaf4ff; border-radius: 16px 16px 0 0; padding: 28px 24px; text-align: center;">
+          <img
+            src="${PHARMACY_PROFILE_LOGO_URL}"
+            alt="9RX Logo"
+            style="max-width: 180px; width: 100%; height: auto; display: inline-block;"
+          />
         </div>
-        ${customMessage ? `<p><strong>Message from admin:</strong><br/>${String(customMessage).replace(/\n/g, "<br/>")}</p>` : ""}
-        <p>Please sign these terms from your dashboard after login.</p>
-        <p style="margin: 24px 0;">
-          <a href="${reviewUrl}" style="display: inline-block; padding: 10px 16px; background: #7c3aed; color: #ffffff; text-decoration: none; border-radius: 6px;">
-            Review and Sign Terms
-          </a>
-        </p>
-        <p>If you did not expect this email, please contact support.</p>
+
+        <div style="padding: 32px 28px 24px;">
+          <h2 style="margin: 0 0 16px; font-size: 28px; line-height: 1.2; color: #111827;">Credit Terms Sent for Your Signature</h2>
+          <p style="margin: 0 0 14px; font-size: 16px; line-height: 1.6;">Hello ${fullName},</p>
+          <p style="margin: 0 0 14px; font-size: 16px; line-height: 1.6;">Your credit terms are ready for review and signature.</p>
+
+          <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px 20px; margin: 20px 0;">
+            <p style="margin: 0 0 10px; font-size: 15px;"><strong>Credit Limit:</strong> $${Number(creditLimit).toLocaleString()}</p>
+            <p style="margin: 0 0 10px; font-size: 15px;"><strong>Net Terms:</strong> Net ${Number(netTerms)}</p>
+            <p style="margin: 0 0 10px; font-size: 15px;"><strong>Late Fee:</strong> ${Number(interestRate).toFixed(2)}% per month</p>
+            <p style="margin: 0; font-size: 15px;"><strong>Expires On:</strong> ${expiresAt.toLocaleDateString("en-US")}</p>
+          </div>
+
+          ${customMessage ? `<p style="margin: 0 0 14px; font-size: 15px; line-height: 1.6;"><strong>Message from admin:</strong><br/>${String(customMessage).replace(/\n/g, "<br/>")}</p>` : ""}
+
+          <p style="margin: 0 0 14px; font-size: 16px; line-height: 1.6;">Please sign these terms from your dashboard after login.</p>
+
+          <p style="margin: 26px 0 22px; text-align: center;">
+            <a href="${reviewUrl}" style="display: inline-block; padding: 12px 20px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 700;">
+              Review and Sign Terms
+            </a>
+          </p>
+
+          <p style="margin: 0 0 8px; font-size: 15px; line-height: 1.6;">If you did not expect this email, please contact support.</p>
+        </div>
+
+        <div style="background: #f3f4f6; border-radius: 0 0 16px 16px; padding: 28px 24px; text-align: center; color: #6b7280;">
+          <p style="margin: 0 0 10px; font-size: 14px; font-weight: 700;">9RX - Your Trusted B2B Pharmacy Partner</p>
+          <p style="margin: 0 0 18px; font-size: 14px;">
+            Need help? Contact us at
+            <a href="mailto:info@9rx.com" style="color: #2563eb; text-decoration: none;">info@9rx.com</a>
+          </p>
+          <p style="margin: 0; font-size: 13px; color: #9ca3af;">This is an automated email. Please do not reply to this email.</p>
+        </div>
       </div>
     `;
 

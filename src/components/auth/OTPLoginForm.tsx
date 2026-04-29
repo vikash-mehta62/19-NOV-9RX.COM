@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -29,8 +29,20 @@ export const OTPLoginForm = () => {
   const [showUnverifiedDialog, setShowUnverifiedDialog] = useState(false);
   const [showTermsDialog, setShowTermsDialog] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const dispatch = useDispatch();
+  const searchParams = new URLSearchParams(location.search);
+  const redirect = searchParams.get("redirect");
+  let decodedRedirect: string | null = null;
+
+  if (redirect) {
+    try {
+      decodedRedirect = decodeURIComponent(redirect);
+    } catch (error) {
+      console.warn("Failed to decode login redirect param:", error);
+    }
+  }
 
   // Clear any errors when component mounts
   useEffect(() => {
@@ -272,14 +284,6 @@ export const OTPLoginForm = () => {
           description: `Welcome back, ${user.firstName}!`,
         });
 
-        // Navigate to appropriate dashboard
-        const dashboardRoutes: Record<string, string> = {
-          admin: "/admin/dashboard",
-          pharmacy: "/pharmacy/products",
-          hospital: "/hospital/dashboard",
-          group: "/group/dashboard",
-        };
-
         // For group users, validate they have proper setup
         if (user.type === "group") {
           // Check if group has basic configuration
@@ -299,8 +303,7 @@ export const OTPLoginForm = () => {
           }
         }
 
-        const route = dashboardRoutes[user.type] || "/";
-        navigate(route, { replace: true });
+        navigate(decodedRedirect || "/dashboard", { replace: true });
       }
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || err.message || "Invalid OTP";
