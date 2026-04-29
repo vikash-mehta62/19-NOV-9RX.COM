@@ -9,6 +9,7 @@ import {
   Edit2,
   ChevronDown,
   ChevronUp,
+  Plus,
 } from "lucide-react";
 import { useState } from "react";
 import type { Customer, BillingAddress, ShippingAddress } from "../types";
@@ -27,6 +28,7 @@ export interface ReviewOrderStepProps {
   onEditCustomer: () => void;
   onEditAddress: () => void;
   onEditProducts: () => void;
+  onAddManualItem?: () => void;
   hideSummaryCard?: boolean;
   compact?: boolean;
   hideCustomerAndAddress?: boolean;
@@ -45,6 +47,7 @@ export const ReviewOrderStep = ({
   onEditCustomer,
   onEditAddress,
   onEditProducts,
+  onAddManualItem,
   hideSummaryCard = false,
   compact = false,
   hideCustomerAndAddress = false,
@@ -222,10 +225,18 @@ export const ReviewOrderStep = ({
               <Package className="h-5 w-5 text-purple-600" />
               <CardTitle>Order Items ({cartItems.length})</CardTitle>
             </div>
-            <Button variant="ghost" size="sm" onClick={onEditProducts}>
-              <Edit2 className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
+            <div className="flex items-center gap-2">
+              {onAddManualItem && (
+                <Button variant="outline" size="sm" onClick={onAddManualItem}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Manual Item
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" onClick={onEditProducts}>
+                <Edit2 className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

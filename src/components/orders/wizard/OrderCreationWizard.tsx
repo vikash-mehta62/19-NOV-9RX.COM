@@ -115,6 +115,7 @@ const OrderCreationWizardComponent = ({
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [addCustomerModalOpen, setAddCustomerModalOpen] = useState(false);
   const [customerRefreshKey, setCustomerRefreshKey] = useState(0);
+  const [manualItemRequestKey, setManualItemRequestKey] = useState(0);
   const wizardSectionRef = useRef<HTMLElement | null>(null);
   
   // Discount state
@@ -1177,6 +1178,16 @@ const OrderCreationWizardComponent = ({
     }
   }, [wizardState, isPharmacyMode, userType, navigate]);
 
+  const handleAddManualItem = useCallback(() => {
+    if (isPharmacyMode || userType === "group") {
+      return;
+    }
+
+    setManualItemRequestKey((prev) => prev + 1);
+    wizardState.goToStep(3);
+    scrollAfterStepChange();
+  }, [isPharmacyMode, scrollAfterStepChange, userType, wizardState]);
+
   // Handle place order without payment (Admin only)
   const handlePlaceOrderWithoutPayment = useCallback(async () => {
     setIsSubmitting(true);
@@ -1368,6 +1379,8 @@ const OrderCreationWizardComponent = ({
           <ProductSelectionStep
             onCartUpdate={onCartUpdate}
             pricingProfileId={selectedCustomer?.id}
+            allowManualItems={userType === "admin"}
+            openManualItemRequestKey={manualItemRequestKey}
           />
         );
       case 4:
@@ -1385,6 +1398,7 @@ const OrderCreationWizardComponent = ({
               onEditCustomer={handleEditCustomer}
               onEditAddress={handleEditAddress}
               onEditProducts={handleEditProducts}
+              onAddManualItem={userType === "admin" ? handleAddManualItem : undefined}
               hideSummaryCard={true}
             />
             <PaymentConfirmationStep

@@ -1,157 +1,354 @@
-import React from "react";
-import { useForm, useFieldArray } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import * as yup from "yup";
+import { useEffect, useMemo, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { Package2, ReceiptText } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import type { CartItem } from "@/store/types/cartTypes";
 
-const validationSchema = yup.object().shape({
-  name: yup.string().required("Name is required"),
-  price: yup.number().required("Price is required").positive("Price must be positive"),
-  sizes: yup.array().of(
-    yup.object().shape({
-      size: yup.string().required("Size is required"),
-      price: yup.number().required("Size price is required").positive("Must be positive"),
-      quantity: yup.number().required("Quantity is required").min(1, "Min quantity is 1"),
-    })
-  ),
+interface CustomProductFormProps {
+  isOpen: boolean;
+  onClose: () => void;
+  isEditing?: boolean;
+  form?: {
+    getValues?: (name?: string) => unknown;
+    setValue?: (name: string, value: unknown) => void;
+  } | null;
+  onAdded?: (item: CartItem) => void;
+}
+
+interface ManualItemFormState {
+  name: string;
+  sku: string;
+  sizeName: string;
+  sizeValue: string;
+  sizeUnit: string;
+  quantity: string;
+  unitPrice: string;
+  shippingCost: string;
+  description: string;
+  notes: string;
+}
+
+const createInitialState = (): ManualItemFormState => ({
+  name: "",
+  sku: "",
+  sizeName: "",
+  sizeValue: "Standard",
+  sizeUnit: "",
+  quantity: "1",
+  unitPrice: "",
+  shippingCost: "0",
+  description: "",
+  notes: "",
 });
 
-const CustomProductForm = ({ isOpen, onClose, isEditing, form }) => {
+const buildManualCartItem = (values: ManualItemFormState): CartItem => {
+  const productId = `manual-order-${uuidv4()}`;
+  const sizeId = `${productId}-size`;
+  const quantity = Math.max(1, Number(values.quantity || 1));
+  const unitPrice = Number(values.unitPrice || 0);
+  const shippingCost = Math.max(0, Number(values.shippingCost || 0));
+  const resolvedName = values.name.trim();
+  const resolvedSku = values.sku.trim() || `MANUAL-${Date.now()}`;
+  const resolvedSizeName = values.sizeName.trim() || resolvedName;
+  const resolvedSizeValue = values.sizeValue.trim() || "Standard";
+  const resolvedSizeUnit = values.sizeUnit.trim();
+  const resolvedDescription = values.description.trim();
+  const resolvedNotes = values.notes.trim();
+
+  return {
+    productId,
+    name: resolvedName,
+    sku: resolvedSku,
+    price: Number((quantity * unitPrice).toFixed(2)),
+    image: "/placeholder.svg",
+    description: resolvedDescription,
+    quantity,
+    sizes: [
+      {
+        id: sizeId,
+        size_name: resolvedSizeName,
+        size_value: resolvedSizeValue,
+        size_unit: resolvedSizeUnit,
+        price: Number(unitPrice.toFixed(2)),
+        quantity,
+        type: "manual",
+        sku: resolvedSku,
+        shipping_cost: shippingCost,
+      },
+    ],
+    customizations: {},
+    notes: resolvedNotes,
+    shipping_cost: shippingCost,
+  };
+};
+
+const CustomProductForm = ({
+  isOpen,
+  onClose,
+  isEditing = false,
+  form = null,
+  onAdded,
+}: CustomProductFormProps) => {
   const { addToCart } = useCart();
+  const { toast } = useToast();
+  const [values, setValues] = useState<ManualItemFormState>(createInitialState);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    control,
-    getValues,
-    formState: { errors },
-  } = useForm({
-    resolver: yupResolver(validationSchema),
-    defaultValues: {
-      price: 0,
-      sizes: [{ size: "", price: 0, quantity: 0 }],
-    },
-  });
+  useEffect(() => {
+    if (isOpen) {
+      setValues(createInitialState());
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
 
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "sizes",
-  });
+  const quantity = Math.max(0, Number(values.quantity || 0));
+  const unitPrice = Math.max(0, Number(values.unitPrice || 0));
+  const shippingCost = Math.max(0, Number(values.shippingCost || 0));
+  const lineTotal = useMemo(
+    () => Number((quantity * unitPrice).toFixed(2)),
+    [quantity, unitPrice]
+  );
 
-  const onSubmit = async () => {
-    const data = getValues();
-    const totalPrice = data.sizes.reduce(
-      (sum, size) => sum + Number(size.price) * Number(size.quantity),
-      0
-    );
+  const updateField = (field: keyof ManualItemFormState, value: string) => {
+    setValues((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = async () => {
+    const trimmedName = values.name.trim();
+    const parsedQuantity = Number(values.quantity);
+    const parsedUnitPrice = Number(values.unitPrice);
+    const parsedShipping = Number(values.shippingCost || 0);
+
+    if (!trimmedName) {
+      toast({
+        title: "Manual item name required",
+        description: "Enter a product or charge name before adding it to the order.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
+      toast({
+        title: "Invalid quantity",
+        description: "Quantity must be greater than 0.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!Number.isFinite(parsedUnitPrice) || parsedUnitPrice < 0) {
+      toast({
+        title: "Invalid unit price",
+        description: "Unit price must be 0 or greater.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!Number.isFinite(parsedShipping) || parsedShipping < 0) {
+      toast({
+        title: "Invalid shipping amount",
+        description: "Shipping cost must be 0 or greater.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
-      const cartItem = {
-        productId: uuidv4(),
-        name: data.name,
-        sku: "CUSTOM-" + Date.now(),
-        price: Number(totalPrice),
-        image: "https://via.placeholder.com/150",
-        shipping_cost: 0,
-        sizes: data.sizes.map((size) => ({
-          id: uuidv4(),
-          price: Number(size.price),
-          quantity: Number(size.quantity),
-          size_value: size.size,
-          size_unit: " ",
-          sku: "",
-        })),
-        quantity: data.sizes.reduce((total, size) => total + Number(size.quantity), 0),
-        customizations: {},
-        notes: "",
-      };
+      const cartItem = buildManualCartItem(values);
 
-      if (isEditing) {
-        form.setValue("items", [...form.getValues("items"), cartItem]);
+      if (isEditing && form?.getValues && form?.setValue) {
+        const existingItems = Array.isArray(form.getValues("items"))
+          ? (form.getValues("items") as CartItem[])
+          : [];
+        form.setValue("items", [...existingItems, cartItem]);
       } else {
         await addToCart(cartItem);
       }
+
+      onAdded?.(cartItem);
+
+      toast({
+        title: "Manual item added",
+        description: `${cartItem.name} was added to the order.`,
+      });
+
       onClose();
     } catch (error) {
-      console.error("Error adding to cart:", error);
+      console.error("Failed to add manual order item:", error);
+      toast({
+        title: "Unable to add manual item",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg w-full p-6 bg-white shadow-md rounded-lg">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Custom Product</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Package2 className="h-5 w-5 text-blue-600" />
+            Add Manual Item
+          </DialogTitle>
+          <DialogDescription>
+            Create a one-off charge or product line with a manual name, SKU, quantity, price, and notes.
+          </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div>
-            <label className="block font-medium"> Name</label>
-            <input
-              type="text"
-              {...register("name")}
-              className="w-full p-2 border rounded"
-              placeholder="Enter custom name"
+        <div className="grid gap-4 py-2 md:grid-cols-2">
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="manual-item-name">Name</Label>
+            <Input
+              id="manual-item-name"
+              value={values.name}
+              onChange={(e) => updateField("name", e.target.value)}
+              placeholder="Manual delivery charge, custom tray, special item..."
             />
-            {errors.name && (
-              <p className="text-red-500 text-sm">{errors.name.message}</p>
-            )}
           </div>
 
-          <div>
-            <h3 className="text-lg font-medium">Size</h3>
-            {fields.map((field, index) => (
-              <div key={field.id} className="flex space-x-2 items-center">
-                <input
-                  type="text"
-                  placeholder="Name At least 2 words"
-                  {...register(`sizes.${index}.size`)}
-                  className="p-2 border border-gray-300 rounded w-1/3"
-                />
-                <label>Price</label>
-                <input
-                  type="number"
-                  placeholder="Price"
-                  {...register(`sizes.${index}.price`)}
-                  className="p-2 border border-gray-300 rounded w-1/3"
-                />
-                <label>Quantity</label>
-                <input
-                  type="number"
-                  placeholder="Quantity"
-                  {...register(`sizes.${index}.quantity`)}
-                  className="p-2 border border-gray-300 rounded w-1/3"
-                />
-                <button type="button" onClick={() => remove(index)} className="text-red-500">
-                  X
-                </button>
-              </div>
-            ))}
+          <div className="space-y-2">
+            <Label htmlFor="manual-item-sku">SKU</Label>
+            <Input
+              id="manual-item-sku"
+              value={values.sku}
+              onChange={(e) => updateField("sku", e.target.value)}
+              placeholder="Optional"
+            />
           </div>
 
-          <DialogFooter className="flex justify-between">
-            <p
-              onClick={onSubmit}
-              className="p-2 bg-green-500 text-white rounded cursor-pointer"
-            >
-              Add to Cart
-            </p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 bg-gray-500 text-white rounded"
-            >
-              Close
-            </button>
-          </DialogFooter>
-        </form>
+          <div className="space-y-2">
+            <Label htmlFor="manual-item-size-name">Size Label</Label>
+            <Input
+              id="manual-item-size-name"
+              value={values.sizeName}
+              onChange={(e) => updateField("sizeName", e.target.value)}
+              placeholder="Defaults to item name"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="manual-item-size-value">Size Value</Label>
+            <Input
+              id="manual-item-size-value"
+              value={values.sizeValue}
+              onChange={(e) => updateField("sizeValue", e.target.value)}
+              placeholder="Standard"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="manual-item-size-unit">Size Unit</Label>
+            <Input
+              id="manual-item-size-unit"
+              value={values.sizeUnit}
+              onChange={(e) => updateField("sizeUnit", e.target.value)}
+              placeholder="box, fee, set, each..."
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="manual-item-quantity">Quantity</Label>
+            <Input
+              id="manual-item-quantity"
+              type="number"
+              min="1"
+              step="1"
+              value={values.quantity}
+              onChange={(e) => updateField("quantity", e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="manual-item-unit-price">Unit Price ($)</Label>
+            <Input
+              id="manual-item-unit-price"
+              type="number"
+              min="0"
+              step="0.01"
+              value={values.unitPrice}
+              onChange={(e) => updateField("unitPrice", e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="manual-item-shipping">Shipping Cost ($)</Label>
+            <Input
+              id="manual-item-shipping"
+              type="number"
+              min="0"
+              step="0.01"
+              value={values.shippingCost}
+              onChange={(e) => updateField("shippingCost", e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="manual-item-description">Description</Label>
+            <Textarea
+              id="manual-item-description"
+              value={values.description}
+              onChange={(e) => updateField("description", e.target.value)}
+              placeholder="Short customer-facing description"
+              className="min-h-[84px]"
+            />
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="manual-item-notes">Internal Notes</Label>
+            <Textarea
+              id="manual-item-notes"
+              value={values.notes}
+              onChange={(e) => updateField("notes", e.target.value)}
+              placeholder="Optional internal notes for this line item"
+              className="min-h-[84px]"
+            />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <ReceiptText className="h-4 w-4 text-slate-500" />
+            Preview
+          </div>
+          <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
+            <p>Name: <span className="font-medium text-slate-900">{values.name.trim() || "Not set"}</span></p>
+            <p>SKU: <span className="font-medium text-slate-900">{values.sku.trim() || "Auto-generated"}</span></p>
+            <p>Quantity: <span className="font-medium text-slate-900">{quantity || 0}</span></p>
+            <p>Unit Price: <span className="font-medium text-slate-900">${unitPrice.toFixed(2)}</span></p>
+            <p>Shipping Cost: <span className="font-medium text-slate-900">${shippingCost.toFixed(2)}</span></p>
+            <p>Line Total: <span className="font-semibold text-blue-700">${lineTotal.toFixed(2)}</span></p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting ? "Adding..." : "Add Manual Item"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

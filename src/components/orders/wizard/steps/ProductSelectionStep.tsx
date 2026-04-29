@@ -103,6 +103,8 @@ const resolveUnitToggle = (
 export interface ProductSelectionStepProps {
   onCartUpdate?: () => void;
   pricingProfileId?: string | null;
+  allowManualItems?: boolean;
+  openManualItemRequestKey?: number;
 }
 
 // Optimized products fetcher with React Query
@@ -178,7 +180,12 @@ const fetchProductsWithGroupPricing = async (userId: string) => {
   }));
 };
 
-const ProductSelectionStepComponent = ({ onCartUpdate, pricingProfileId }: ProductSelectionStepProps) => {
+const ProductSelectionStepComponent = ({
+  onCartUpdate,
+  pricingProfileId,
+  allowManualItems = false,
+  openManualItemRequestKey = 0,
+}: ProductSelectionStepProps) => {
   const { toast } = useToast();
   const { cartItems, addToCart, removeFromCart, updateQuantity, updateDescription } = useCart();
   const userProfile = useSelector(selectUserProfile);
@@ -246,6 +253,12 @@ const ProductSelectionStepComponent = ({ onCartUpdate, pricingProfileId }: Produ
       });
     }
   }, [error, toast]);
+
+  useEffect(() => {
+    if (allowManualItems && openManualItemRequestKey > 0) {
+      setShowCustomProductDialog(true);
+    }
+  }, [allowManualItems, openManualItemRequestKey]);
 
   // Build category structure from products
   const categories = useMemo(() => {
@@ -570,6 +583,17 @@ const ProductSelectionStepComponent = ({ onCartUpdate, pricingProfileId }: Produ
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {allowManualItems && (
+              <Button
+                onClick={() => setShowCustomProductDialog(true)}
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5 border-blue-300 hover:bg-blue-50"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                Manual Item
+              </Button>
+            )}
             {/* TODO:Custom-Product */}
             {/* <Button 
               onClick={() => setShowCustomProductDialog(true)} 
@@ -1366,6 +1390,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate, pricingProfileId }: Produ
         onClose={() => setShowCustomProductDialog(false)}
         isEditing={false}
         form={null}
+        onAdded={() => onCartUpdate?.()}
       />
     </div>
   );
