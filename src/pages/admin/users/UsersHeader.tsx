@@ -13,8 +13,8 @@ const getUserPageCopy = (filterType: string) => {
       return {
         title: "Pharmacy Management",
         description: "Manage and monitor pharmacy customer accounts.",
-        addLabel: "Add Office",
-      };
+        addLabel: "Add Customer",
+      };  
     case "group":
       return {
         title: "Group Management",

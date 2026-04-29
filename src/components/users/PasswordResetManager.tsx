@@ -2,17 +2,17 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Send } from "lucide-react";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 interface PasswordResetManagerProps {
   userId: string;
@@ -27,42 +27,58 @@ export const PasswordResetManager = ({
   requiresReset,
   onResetCleared,
 }: PasswordResetManagerProps) => {
-  const [isClearing, setIsClearing] = useState(false);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [showSendDialog, setShowSendDialog] = useState(false);
   const { toast } = useToast();
 
-  const handleClearPasswordResetFlag = async () => {
-    setIsClearing(true);
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ requires_password_reset: false })
-        .eq("id", userId);
+  const handleSendResetPasswordEmail = async () => {
+    setIsSending(true);
 
-      if (error) {
-        throw error;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("Please log in");
+      }
+
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "https://9rx.mahitechnocrafts.in";
+      const response = await fetch(`${apiBaseUrl}/api/launch/send-reset-emails`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          testMode: false,
+          testEmail: null,
+          selectedUserIds: [userId],
+          sendToAll: false,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to send reset password email");
       }
 
       toast({
         title: "Success",
-        description: `Password reset flag cleared for ${userEmail}. User can now login normally.`,
+        description: `Reset password email sent to ${userEmail}.`,
       });
 
-      // Call the callback to refresh the parent component
       if (onResetCleared) {
         onResetCleared();
       }
 
-      setShowConfirmDialog(false);
+      setShowSendDialog(false);
     } catch (error: any) {
-      console.error("Error clearing password reset flag:", error);
+      console.error("Error sending reset password email:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to clear password reset flag",
+        description: error.message || "Failed to send reset password email",
         variant: "destructive",
       });
     } finally {
-      setIsClearing(false);
+      setIsSending(false);
     }
   };
 
@@ -80,49 +96,77 @@ export const PasswordResetManager = ({
       <Button
         variant="outline"
         size="sm"
-        onClick={() => setShowConfirmDialog(true)}
-        disabled={isClearing}
+        onClick={() => setShowSendDialog(true)}
+        disabled={isSending}
         className="text-amber-600 border-amber-600 hover:bg-amber-50"
       >
-        {isClearing ? (
+        {isSending ? (
           <>
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Clearing...
+            Sending...
           </>
         ) : (
-          "Clear Reset Flag"
+          "Send Reset Password Email"
         )}
       </Button>
 
-      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear Password Reset Flag?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will allow <strong>{userEmail}</strong> to login normally without seeing the password reset popup.
-              <br /><br />
-              <strong>Important:</strong> Only do this after you have reset their password!
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleClearPasswordResetFlag}
-              disabled={isClearing}
+      <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Reset Password Email</DialogTitle>
+            {/* <DialogDescription>
+              This will use the existing Launch Reset Password functionality to send the email.
+            </DialogDescription> */}
+          </DialogHeader>
+
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p>This Reset Password email include this below two points:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Accepted Terms & Conditions</li>
+              <li>Reset password</li>
+            </ul>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="reset-password-email">Email Address</Label>
+            <Input
+              id="reset-password-email"
+              type="email"
+              value={userEmail}
+              disabled
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowSendDialog(false)}
+              disabled={isSending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSendResetPasswordEmail}
+              disabled={isSending}
               className="bg-amber-600 hover:bg-amber-700"
             >
-              {isClearing ? (
+              {isSending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Clearing...
+                  Sending...
                 </>
               ) : (
-                "Yes, Clear Flag"
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Reset Password Email
+                </>
               )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

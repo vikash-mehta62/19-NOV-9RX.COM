@@ -3,6 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AlertCircle, RefreshCw, Clock, User, Search, ChevronDown } from "lucide-react";
@@ -37,6 +44,7 @@ export const PasswordResetRequests = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed">("all");
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
 
@@ -109,22 +117,38 @@ export const PasswordResetRequests = () => {
     });
   };
 
-  // Filter requests based on search query
-  const filteredRequests = groupedRequests.filter((request) => {
-    const profile = Array.isArray(request.profiles) 
-      ? request.profiles[0] 
-      : request.profiles;
-    
-    const userName = profile?.first_name || profile?.last_name
-      ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
-      : '';
-    
-    const searchLower = searchQuery.toLowerCase();
-    return (
-      userName.toLowerCase().includes(searchLower) ||
-      request.email.toLowerCase().includes(searchLower)
-    );
-  });
+  const filteredRequests = groupedRequests
+    .filter((request) => {
+      const profile = Array.isArray(request.profiles) 
+        ? request.profiles[0] 
+        : request.profiles;
+      const requiresReset = profile?.requires_password_reset ?? true;
+      const userName = profile?.first_name || profile?.last_name
+        ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
+        : '';
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch =
+        userName.toLowerCase().includes(searchLower) ||
+        request.email.toLowerCase().includes(searchLower);
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "pending" && requiresReset) ||
+        (statusFilter === "completed" && !requiresReset);
+
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      const aProfile = Array.isArray(a.profiles) ? a.profiles[0] : a.profiles;
+      const bProfile = Array.isArray(b.profiles) ? b.profiles[0] : b.profiles;
+      const aPending = aProfile?.requires_password_reset ?? true;
+      const bPending = bProfile?.requires_password_reset ?? true;
+
+      if (aPending !== bPending) {
+        return aPending ? -1 : 1;
+      }
+
+      return new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime();
+    });
 
   if (loading) {
     return (
@@ -200,20 +224,32 @@ export const PasswordResetRequests = () => {
 
         <CollapsibleContent>
           <CardContent className="pt-0">
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Search by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={(value: "all" | "pending" | "completed") => setStatusFilter(value)}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filter status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {filteredRequests.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                {searchQuery ? "No matching requests found" : "No password reset requests yet"}
+                {searchQuery || statusFilter !== "all" ? "No matching requests found" : "No password reset requests yet"}
               </div>
             ) : (
               <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
