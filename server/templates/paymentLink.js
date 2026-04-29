@@ -285,7 +285,7 @@ const paymentLink = (order) => {
                                         <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #374151;">Need Help?</p>
                                         <p style="margin: 0; font-size: 13px; color: #6b7280;">
                                             Contact us at <a href="mailto:info@9rx.com" style="color: #059669; text-decoration: none; font-weight: 500;">info@9rx.com</a> 
-                                            or call <a href="tel:+1234567890" style="color: #059669; text-decoration: none; font-weight: 500;">(123) 456-7890</a>
+                                            or call <a href="tel:+18009409619" style="color: #059669; text-decoration: none; font-weight: 500;">+1 (800) 940-9619</a>
                                         </p>
                                     </td>
                                 </tr>
