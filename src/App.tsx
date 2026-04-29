@@ -331,7 +331,7 @@ function App() {
     }
 
     // Password recovery links can open on unexpected routes depending on email client/link wrapper.
-    // Normalize them to /reset-password and preserve token payload.
+    // Normalize them to the intended route and preserve token payload.
     const hasRecoveryHash =
       hash.includes("type=recovery") &&
       (hash.includes("access_token=") || hash.includes("refresh_token="));
@@ -339,9 +339,30 @@ function App() {
       search.includes("type=recovery") &&
       (search.includes("code=") || search.includes("token_hash=") || search.includes("token="));
 
-    if ((hasRecoveryHash || hasRecoveryCodeQuery) && currentPath !== "/reset-password") {
-      console.log("🔐 Recovery link detected on non-reset route, redirecting to /reset-password");
-      window.location.href = `/reset-password${search || ""}${hash || ""}`;
+    if (hasRecoveryHash || hasRecoveryCodeQuery) {
+      const redirectToParam = new URLSearchParams(search).get("redirect_to");
+      let intendedPath = "/reset-password";
+
+      if (redirectToParam) {
+        try {
+          const decodedRedirect = decodeURIComponent(redirectToParam);
+          const redirectUrl = new URL(decodedRedirect, window.location.origin);
+          if (redirectUrl.pathname === "/launch-password-reset") {
+            intendedPath = "/launch-password-reset";
+          } else if (redirectUrl.pathname === "/reset-password") {
+            intendedPath = "/reset-password";
+          }
+        } catch (error) {
+          console.warn("Failed to parse redirect_to for recovery link:", error);
+        }
+      } else if (currentPath === "/launch-password-reset" || currentPath === "/reset-password") {
+        intendedPath = currentPath;
+      }
+
+      if (currentPath !== intendedPath) {
+        console.log(`🔐 Recovery link detected, redirecting to ${intendedPath}`);
+        window.location.href = `${intendedPath}${search || ""}${hash || ""}`;
+      }
     }
   }, [location.pathname, location.search]);
 

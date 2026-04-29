@@ -358,7 +358,7 @@ const CreditApplicationForm = () => {
       </div>
 
       {/* Benefits (only on step 1) */}
-      {currentStep === 1 && (
+      {/* {currentStep === 1 && (
         <div className="grid md:grid-cols-3 gap-4 mb-8">
           <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
             <CardContent className="p-4 text-center">
@@ -382,7 +382,7 @@ const CreditApplicationForm = () => {
             </CardContent>
           </Card>
         </div>
-      )}
+      )} */}
 
       {/* Step 1: Application Info */}
       {currentStep === 1 && (

@@ -12,6 +12,21 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
+function getFrontendUrl() {
+  const fallback = "https://9rx.com";
+  const configured = (process.env.FRONTEND_URL || fallback).trim().replace(/\/+$/, "");
+  const isLocalhost =
+    configured.includes("localhost") ||
+    configured.includes("127.0.0.1");
+  const isProd = process.env.NODE_ENV === "production";
+
+  if (isProd && isLocalhost) {
+    throw new Error("Invalid FRONTEND_URL for production: localhost is not allowed.");
+  }
+
+  return configured;
+}
+
 /**
  * Health check endpoint
  * GET /api/launch/health
@@ -104,7 +119,8 @@ router.post("/send-reset-emails", requireAdmin, async (req, res) => {
       await Promise.all(batch.map(async (user) => {
         try {
           // Generate password reset token with redirect to launch password reset page
-          const redirectUrl = `${process.env.FRONTEND_URL || 'https://9rx.com'}/launch-password-reset?launch=true`;
+          const frontendUrl = getFrontendUrl();
+          const redirectUrl = `${frontendUrl}/launch-password-reset?launch=true`;
           
           const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
             type: 'recovery',
@@ -127,7 +143,7 @@ router.post("/send-reset-emails", requireAdmin, async (req, res) => {
           // Use the actual Supabase recovery link which creates a proper session
           // This link will automatically authenticate the user and redirect to our page
           const resetLink = resetData.properties.action_link;
-          const termsLink = `${process.env.FRONTEND_URL || 'https://9rx.com'}/terms-and-conditions`;
+          const termsLink = `${frontendUrl}/terms-and-conditions`;
 
           // Send email
           const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Valued Customer';

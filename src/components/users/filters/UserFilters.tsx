@@ -37,7 +37,7 @@ export function UserFilters({
         />
       </div>
       <div className="flex gap-2">
-        <Select
+        {/* <Select
           value={filterType}
           onValueChange={onTypeChange}
         >
@@ -52,7 +52,7 @@ export function UserFilters({
             <SelectItem value="Admin">Internal Admin</SelectItem>
             <SelectItem value="vendor">Vendor</SelectItem>
           </SelectContent>
-        </Select>
+        </Select> */}
         <Select
           value={filterStatus}
           onValueChange={onStatusChange}

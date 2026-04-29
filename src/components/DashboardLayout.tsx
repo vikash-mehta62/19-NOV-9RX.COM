@@ -117,7 +117,11 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
       {
         label: "Customers",
         items: [
-          { icon: Users, label: "Users", path: "/admin/users", requiredPermission: "users" },
+          { icon: Users, label: "All Users", path: "/admin/users", requiredPermission: "users" },
+          { icon: Users, label: "Pharmacy", path: "/admin/users?type=Pharmacy", requiredPermission: "users" },
+          { icon: Users, label: "Groups", path: "/admin/users?type=Group", requiredPermission: "users" },
+          { icon: Users, label: "Vendors", path: "/admin/users?type=vendor", requiredPermission: "users" },
+          { icon: Users, label: "Internal Admin", path: "/admin/users?type=Admin", requiredPermission: "users" },
           
           //Hidden for now since we are not perfectly clear about this
           // { icon: Users, label: "Groups", path: "/admin/groups" },    

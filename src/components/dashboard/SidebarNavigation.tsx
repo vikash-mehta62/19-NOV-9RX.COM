@@ -40,6 +40,7 @@ export const SidebarNavigation = ({ items, isGrouped = false }: SidebarNavigatio
   const location = useLocation()
   const { state } = useSidebar()
   const isCollapsed = state === "collapsed"
+  const currentPath = `${location.pathname}${location.search}`
 
   // Track which groups are open - default first group open
   const [openGroups, setOpenGroups] = useState<Record<number, boolean>>({ 0: true })
@@ -48,9 +49,17 @@ export const SidebarNavigation = ({ items, isGrouped = false }: SidebarNavigatio
     setOpenGroups(prev => ({ ...prev, [index]: !prev[index] }))
   }
 
+  const isItemActive = (itemPath: string) => {
+    if (itemPath.includes("?")) {
+      return currentPath === itemPath
+    }
+
+    return location.pathname === itemPath
+  }
+
   // Check if any item in a group is active
   const isGroupActive = (group: NavigationGroup) => {
-    return group.items.some(item => location.pathname === item.path)
+    return group.items.some(item => isItemActive(item.path))
   }
 
   if (isGrouped) {
@@ -100,7 +109,7 @@ export const SidebarNavigation = ({ items, isGrouped = false }: SidebarNavigatio
                     <SidebarGroupContent>
                       <SidebarMenu className="space-y-1 px-2 mt-1">
                         {group.items.map((item) => {
-                          const isActive = location.pathname === item.path
+                          const isActive = isItemActive(item.path)
                           return (
                             <SidebarMenuItem key={item.path}>
                               <Tooltip>
@@ -188,7 +197,7 @@ export const SidebarNavigation = ({ items, isGrouped = false }: SidebarNavigatio
     <TooltipProvider>
       <SidebarMenu className="space-y-1 ">
         {regularItems.map((item) => {
-          const isActive = location.pathname === item.path
+          const isActive = isItemActive(item.path)
           return (
             <SidebarMenuItem key={item.path}>
               <Tooltip>

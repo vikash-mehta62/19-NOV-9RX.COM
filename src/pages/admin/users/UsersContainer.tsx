@@ -27,6 +27,23 @@ interface UsersContainerProps {
   onSelectionChange: (selectedIds: string[]) => void;
 }
 
+const getListTitle = (filterType: string) => {
+  switch (filterType.toLowerCase()) {
+    case "pharmacy":
+      return "Pharmacy List";
+    case "group":
+      return "Group List";
+    case "vendor":
+      return "Vendor List";
+    case "hospital":
+      return "Hospital List";
+    case "admin":
+      return "Internal Admin List";
+    default:
+      return "Customers List";
+  }
+};
+
 export function UsersContainer({
   users,
   selectedUsers,
@@ -39,6 +56,7 @@ export function UsersContainer({
   onSelectionChange,
 }: UsersContainerProps) {
   const { toast } = useToast();
+  const listTitle = getListTitle(filterType);
   const [groupid, setGroup] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [availableGroups, setAvailableGroups] = useState<Array<{id: string, name: string}>>([]);
@@ -149,7 +167,7 @@ export function UsersContainer({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <div className="flex items-center gap-3">
-          <CardTitle className="text-xl font-semibold">Customers List</CardTitle>
+          <CardTitle className="text-xl font-semibold">{listTitle}</CardTitle>
           <Badge variant="secondary" className="text-xs">
             {users.length} total
           </Badge>

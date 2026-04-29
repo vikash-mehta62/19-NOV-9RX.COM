@@ -360,38 +360,22 @@ export default function SizeDetail() {
   const casePrice = size.price || 0
   const originalCasePrice = size.originalPrice || 0
   const hasGroupDiscount = originalCasePrice > 0 && originalCasePrice > casePrice
-  const groupDiscountPercent = hasGroupDiscount ? Math.round((1 - casePrice / originalCasePrice) * 100) : 0
   const hasOfferDiscount = Boolean(productOffer?.hasOffer && productOffer.discountPercent > 0)
   
-  // Calculate prices based on discount type
+  // Apply special prices silently on this page.
   let effectiveCasePrice = casePrice
-  let displayOriginalPrice = 0
-  let displayDiscountPercent = 0
   
   if (hasGroupDiscount) {
-    // Group pricing: discounted price is already stored in size.price
     effectiveCasePrice = casePrice
-    displayOriginalPrice = originalCasePrice
-    displayDiscountPercent = groupDiscountPercent
   } else if (hasOfferDiscount) {
-    // Offer discount: calculate from current price
-    displayOriginalPrice = casePrice
-    displayDiscountPercent = productOffer.discountPercent
     effectiveCasePrice = casePrice * (1 - productOffer.discountPercent / 100)
   } else {
-    // No discount
     effectiveCasePrice = casePrice
-    displayOriginalPrice = 0
-    displayDiscountPercent = 0
   }
-  
-  const hasDiscount = hasGroupDiscount || hasOfferDiscount
   
   const unitsPerCase = size.quantity_per_case || 0
   const unitPrice = unitsPerCase > 0 ? effectiveCasePrice / unitsPerCase : 0
-  const originalTotalPrice = (displayOriginalPrice || casePrice) * quantity
-  const discountedTotalPrice = effectiveCasePrice * quantity
-  const totalPrice = discountedTotalPrice
+  const totalPrice = effectiveCasePrice * quantity
 
   const rewardPoints = Math.floor(totalPrice * rewardsConfig.pointsPerDollar)
 
@@ -666,12 +650,6 @@ export default function SizeDetail() {
                                   ? sizeOffer.effectivePrice
                                   : s.price * (1 - sizeOffer!.discountPercent / 100))
                               : s.price
-                          const sDiscountPercent = sHasGroupDiscount
-                            ? Math.round((1 - s.price / s.originalPrice) * 100)
-                            : sHasOfferDiscount
-                              ? sizeOffer!.discountPercent
-                              : 0
-                          
                           return (
                             <button
                               key={s.id}
@@ -689,18 +667,9 @@ export default function SizeDetail() {
                                   <Gift className="w-3 h-3" />
                                   Earn {sRewardPoints} points
                                 </p>
-                                {/* Show offer badge if applicable */}
-                                {sHasOfferDiscount && sizeOffer?.offerBadge && (
-                                  <Badge className="mt-1 bg-red-500 text-white text-xs">
-                                    🎁 {sDiscountPercent}% OFF
-                                  </Badge>
-                                )}
                               </div>
                               <div className="text-right">
-                                {sOriginalPrice > 0 && (
-                                  <p className="text-xs text-gray-400 line-through">${sOriginalPrice.toFixed(2)}</p>
-                                )}
-                                <p className={`font-bold ${sOriginalPrice > 0 ? 'text-green-600' : 'text-gray-900'}`}>${sEffectivePrice.toFixed(2)}</p>
+                                <p className="font-bold text-gray-900">${sEffectivePrice.toFixed(2)}</p>
                                 <p className="text-xs text-gray-500">/ case</p>
                               </div>
                             </button>
@@ -782,30 +751,12 @@ export default function SizeDetail() {
             {/* Price Card */}
             <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-blue-50">
               <CardContent className="p-4">
-                {/* Show offer badge if available and no group discount */}
-                {!hasGroupDiscount && productOffer?.hasOffer && productOffer.offerBadge && (
-                  <div className="mb-2">
-                    <Badge className="bg-red-500 text-white text-sm font-bold">
-                      🎁 {productOffer.offerBadge}
-                    </Badge>
-                  </div>
-                )}
-                
                 <div className="flex items-baseline gap-2">
-                  {displayOriginalPrice > 0 && (
-                    <span className="text-xl text-gray-400 line-through">${displayOriginalPrice.toFixed(2)}</span>
-                  )}
-                  <span className={`text-3xl font-bold ${hasDiscount ? 'text-green-600' : 'text-gray-900'}`}>
+                  <span className="text-3xl font-bold text-gray-900">
                     ${effectiveCasePrice.toFixed(2)}
                   </span>
                   <span className="text-gray-500">/ case</span>
                 </div>
-                
-                {hasDiscount && displayOriginalPrice > 0 && (
-                  <p className="text-sm text-green-600 font-semibold mt-1">
-                    Save {displayDiscountPercent}% - ${(displayOriginalPrice - effectiveCasePrice).toFixed(2)} off
-                  </p>
-                )}
 
                 {unitsPerCase > 0 && (
                   <p className="text-sm text-gray-600 mt-1 flex items-center gap-1">
@@ -913,26 +864,10 @@ export default function SizeDetail() {
 
                   {/* Total */}
                   <div className="py-3 border-t space-y-1">
-                    {hasDiscount && displayOriginalPrice > 0 && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-500">Original total</span>
-                        <span className="text-gray-400 line-through">${originalTotalPrice.toFixed(2)}</span>
-                      </div>
-                    )}
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-gray-700">Total</span>
                       <span className="text-2xl font-bold text-blue-600">${totalPrice.toFixed(2)}</span>
                     </div>
-                    {hasDiscount && displayOriginalPrice > 0 && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-green-600 font-medium">
-                          {hasGroupDiscount ? 'Discount' : 'Offer Discount'}
-                        </span>
-                        <span className="text-green-600 font-semibold">
-                          -${(originalTotalPrice - totalPrice).toFixed(2)}
-                        </span>
-                      </div>
-                    )}
                     {/* Quantity-Aware Reward Points */}
                     <div className="flex items-center justify-end gap-1 text-blue-600">
                       <Gift className="w-3.5 h-3.5" />

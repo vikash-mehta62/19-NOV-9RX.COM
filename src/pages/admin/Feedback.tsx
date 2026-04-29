@@ -163,7 +163,9 @@ export default function AdminFeedbackPage() {
               <MessageSquare className="h-5 w-5" />
               Pharmacy Feedback
             </CardTitle>
-            <CardDescription>Pharmacy users se aaya hua feedback list</CardDescription>
+            <CardDescription>
+              Manage and review feedback from pharmacies
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">

@@ -778,17 +778,10 @@ export const InlineProductSizes = ({
               const isCustomizationSelectedForSize = isCustomizationSelected(sizeId)
               const isFocusedSize = normalizedFocusedSizeIds.includes(String(sizeId))
               
-              // Check for group pricing discount OR product offer discount
+              // Special prices are applied silently in this inline grid.
               const hasGroupDiscount = size.originalPrice > 0 && size.originalPrice > size.price
               const sizeOffer = sizeOffers[String(size.id)]
               const hasOfferDiscount = Boolean(sizeOffer?.hasOffer && sizeOffer.discountPercent > 0)
-              const hasDiscount = hasGroupDiscount || hasOfferDiscount
-
-              const discountPercent = hasGroupDiscount
-                ? Math.round((1 - size.price / size.originalPrice) * 100)
-                : hasOfferDiscount
-                  ? sizeOffer!.discountPercent
-                  : 0
 
               // Group pricing already stores the discounted case price in size.price.
               // Offers still need to be applied on top of the base case price.
@@ -800,13 +793,6 @@ export const InlineProductSizes = ({
                       ? sizeOffer.effectivePrice
                       : originalCasePrice * (1 - sizeOffer!.discountPercent / 100))
                   : originalCasePrice
-
-              const displayOriginalPrice = hasDiscount ? originalCasePrice : 0
-              const showSavingsText = hasDiscount && discountPercent > 0
-              const savingsAmount = hasDiscount ? Math.max(0, displayOriginalPrice - casePrice) : 0
-              const topBadgeText = hasGroupDiscount
-                ? `${discountPercent}% OFF`
-                : sizeOffer?.offerBadge || (discountPercent > 0 ? `${discountPercent}% OFF` : null)
               
               const unitsPerCase = size.quantity_per_case || 0
               const unitPrice = unitsPerCase > 0 ? casePrice / unitsPerCase : 0
@@ -839,13 +825,6 @@ export const InlineProductSizes = ({
                         <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/5 transition-colors flex items-center justify-center">
                           <ExternalLink className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 opacity-0 group-hover:opacity-70 transition-opacity" />
                         </div>
-                        
-                        {/* Discount Badge */}
-                        {hasDiscount && topBadgeText && discountPercent > 0 && (
-                          <Badge className="absolute top-1 left-1 sm:top-2 sm:left-2 bg-red-500 text-white text-[8px] sm:text-[10px] px-1 sm:px-1.5">
-                            {topBadgeText}
-                          </Badge>
-                        )}
                         
                         {/* In Cart Badge */}
                         {sizeInCart && (
@@ -902,23 +881,11 @@ export const InlineProductSizes = ({
 
                         {/* Case Price - Large & Bold */}
                         <div className="mb-0.5 sm:mb-1 flex flex-wrap items-baseline gap-0.5 sm:gap-1">
-                          {/* Show original price crossed out for group pricing and offers */}
-                          {displayOriginalPrice > 0 && (
-                            <span className="text-sm sm:text-base text-gray-400 line-through">${displayOriginalPrice.toFixed(2)}</span>
-                          )}
-                          {/* Show discounted or regular price */}
-                          <span className={`text-base sm:text-xl font-bold ${hasDiscount ? 'text-green-600' : 'text-gray-900'}`}>
+                          <span className="text-base sm:text-xl font-bold text-gray-900">
                             ${casePrice.toFixed(2)}
                           </span>
                           <span className="text-[10px] sm:text-sm text-gray-500">/ case</span>
                         </div>
-                        
-                        {/* Show savings text for group pricing and offers */}
-                        {showSavingsText && (
-                          <p className="text-[9px] sm:text-xs text-red-600 font-semibold mb-1">
-                            Save {discountPercent}% • ${savingsAmount.toFixed(2)} off
-                          </p>
-                        )}
 
                         {/* Units per Case + Unit Price */}
                         {unitsPerCase > 0 && (

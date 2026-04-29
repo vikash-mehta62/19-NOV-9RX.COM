@@ -161,6 +161,7 @@ const Users = () => {
           <UsersHeader
             onExportCSV={handleExportCSV}
             onAddUser={handleAddUser}
+            filterType={filterType}
           />
 
           {renderContent()}
