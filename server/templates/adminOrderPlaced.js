@@ -15,6 +15,10 @@ const adminOrderNotificationTemplate = (order) => {
         processing_fee_amount = 0
     } = order;
 
+    // Redirect to target page after login, or skip login and navigate directly if already authenticated
+    const frontendUrl = process.env.FRONTEND_URL || "https://9rx.com";
+    const reviewUrl = `${frontendUrl}/login?redirect=${encodeURIComponent('/admin/orders')}`;
+
     const formatCurrency = (amount) => {
         const num = parseFloat(amount) || 0;
         return `$${num.toFixed(2)}`;
@@ -250,7 +254,7 @@ const adminOrderNotificationTemplate = (order) => {
 
                             <!-- CTA Button -->
                             <div style="padding: 0 30px 35px; text-align: center;">
-                                <a href="https://9rx.com/admin/orders" 
+                                <a href=${reviewUrl} 
                                    style="display: inline-block; background-color: #dc2626; color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 12px; font-size: 16px; font-weight: 600;">
                                     📋 View Order
                                 </a>

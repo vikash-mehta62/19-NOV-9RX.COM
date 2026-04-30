@@ -14,6 +14,8 @@ const orderConfirmationTemplate = (order) => {
     status = "new",
     processing_fee_amount = 0
   } = order;
+
+  //Redirect to target page after login, or skip login and navigate directly if already authenticated
   const frontendUrl = process.env.FRONTEND_URL || "https://9rx.com";
   const reviewUrl = `${frontendUrl}/login?redirect=${encodeURIComponent('/pharmacy/orders')}`;
 

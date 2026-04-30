@@ -34,6 +34,7 @@ import {
   Zap,
   HeartHandshake,
 } from "lucide-react";
+import { hasPersistedSupabaseSession, supabase } from "@/integrations/supabase/client";
 import logo from "../assests/home/9rx_logo.png";
 
 // Testimonials data
@@ -144,11 +145,40 @@ const Login = () => {
 
   // Redirect authenticated users
   useEffect(() => {
-    const isLoggedIn = sessionStorage.getItem("isLoggedIn");
+    let isMounted = true;
 
-    if (isLoggedIn === "true") {
-      navigate(decodedRedirect || "/dashboard", { replace: true });
-    }
+    const redirectAuthenticatedUser = async () => {
+      try {
+        const cachedIsLoggedIn = sessionStorage.getItem("isLoggedIn") === "true";
+
+        if (cachedIsLoggedIn) {
+          navigate(decodedRedirect || "/dashboard", { replace: true });
+          return;
+        }
+
+        if (!hasPersistedSupabaseSession()) {
+          return;
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!isMounted || !session?.user) {
+          return;
+        }
+
+        navigate(decodedRedirect || "/dashboard", { replace: true });
+      } catch (error) {
+        console.warn("Failed to verify login redirect session:", error);
+      }
+    };
+
+    void redirectAuthenticatedUser();
+
+    return () => {
+      isMounted = false;
+    };
   }, [decodedRedirect, navigate]);
 
   const nextTestimonial = () => {

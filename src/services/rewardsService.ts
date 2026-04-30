@@ -280,6 +280,11 @@ async function queueRewardEmail(userId: string, data: {
   multiplier: number
   pointsPerDollar: number
 }) {
+
+  // Redirect to target page after login, or skip login and navigate directly if already authenticated
+  const frontendUrl = "https://9rx.com";
+  const reviewUrl = `${frontendUrl}/login?redirect=${encodeURIComponent('/pharmacy/rewards')}`;
+
   const customerName = data.firstName || data.companyName || "Valued Customer"
   
   // Build email content
@@ -373,7 +378,7 @@ async function queueRewardEmail(userId: string, data: {
 
           <!-- CTA Button -->
           <div style="text-align: center; margin-top: 30px;">
-            <a href="${'https://9rx.com'}/pharmacy/rewards" 
+            <a href=${reviewUrl} 
                style="display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; text-decoration: none; padding: 15px 40px; border-radius: 10px; font-weight: bold; font-size: 16px;">
               View My Rewards →
             </a>

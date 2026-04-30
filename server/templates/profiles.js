@@ -27,8 +27,11 @@ const passwordResetTemplate = (name) => {
 
 const profileUpdateTemplate = (name, email) => {
     const currentYear = new Date().getFullYear();
+
+    // Redirect to target page after login, or skip login and navigate directly if already authenticated
     const frontendUrl = process.env.FRONTEND_URL || "https://9rx.com";
     const reviewUrl = `${frontendUrl}/login?redirect=${encodeURIComponent('/pharmacy/settings/update-profile')}`;
+    
     const updateDate = new Date().toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',

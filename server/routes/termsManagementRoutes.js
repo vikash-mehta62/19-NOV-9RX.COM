@@ -105,8 +105,10 @@ router.post("/send-credit-terms", async (req, res) => {
       });
     }
 
+    // Redirect to target page after login, or skip login and navigate directly if already authenticated
     const frontendUrl = process.env.FRONTEND_URL || "https://9rx.com";
     const reviewUrl = `${frontendUrl}/login?redirect=${encodeURIComponent('/pharmacy/credit')}`;
+
     const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() || "Customer";
 
     const emailHtml = `
