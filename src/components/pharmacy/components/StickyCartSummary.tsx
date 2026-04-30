@@ -1,29 +1,54 @@
 "use client"
 
-import { ShoppingCart, ChevronUp, X, ArrowRight, Trash2, Eye } from "lucide-react"
+import { ShoppingCart, ChevronUp, X, ArrowRight, Trash2, Eye, Plus, Minus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useCart } from "@/hooks/use-cart"
 import { useState, useMemo } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
+import { useToast } from "@/hooks/use-toast"
 
 export const StickyCartSummary = () => {
-  const { cartItems, cartTotal, totalItems, removeFromCart } = useCart()
+  const { cartItems, cartTotal, removeFromCart, updateQuantity } = useCart()
   const [isExpanded, setIsExpanded] = useState(false)
-  const [isVisible, setIsVisible] = useState(true)
   const navigate = useNavigate()
   const location = useLocation()
+  const { toast } = useToast()
 
-  // Memoize displayed items for performance
-  const displayedItems = useMemo(() => cartItems.slice(0, 5), [cartItems])
+  // Calculate total items from sizes
+  const totalItems = useMemo(() => 
+    cartItems.reduce((sum, item) => {
+      const itemTotal = (item.sizes || []).reduce((sizeSum, size) => sizeSum + (size.quantity || 0), 0);
+      return sum + itemTotal;
+    }, 0),
+    [cartItems]
+  );
 
   // Hide on order create page (cart is shown in OrderSummaryCard)
   const isOnOrderCreatePage = location.pathname.includes("/order/create")
 
-  // Don't show if no items, not visible, or on order create page
-  if (!isVisible || totalItems === 0 || isOnOrderCreatePage) return null
+  // Don't show if no items or on order create page
+  if (totalItems === 0 || isOnOrderCreatePage) return null
 
-  const handleRemoveItem = async (productId: string, productName: string) => {
-    await removeFromCart(productId)
+  const handleRemoveItem = async (productId: string) => {
+    const success = await removeFromCart(productId)
+    if (!success) {
+      toast({
+        title: "Error",
+        description: "Failed to remove item",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleQuantityChange = async (productId: string, newQuantity: number, sizeId: string) => {
+    const success = await updateQuantity(productId, newQuantity, sizeId)
+    if (!success) {
+      toast({
+        title: "Error",
+        description: "Failed to update quantity",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleViewDetails = (productId: string) => {
@@ -48,47 +73,96 @@ export const StickyCartSummary = () => {
             </button>
           </div>
           
-          <div className="p-3 max-h-64 overflow-y-auto">
-            {displayedItems.map((item, index) => (
-              <div key={index} className="flex items-start gap-2 py-3 border-b border-gray-100 last:border-0">
-                <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                  <img
-                    src={item.image || "/placeholder.svg"}
-                    alt={item.name}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
-                  <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <button
-                      onClick={() => handleViewDetails(item.productId)}
-                      className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                    >
-                      <Eye className="w-3 h-3" />
-                      View
-                    </button>
-                    <span className="text-gray-300">|</span>
-                    <button
-                      onClick={() => handleRemoveItem(item.productId, item.name)}
-                      className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      Remove
-                    </button>
+          <div className="p-3 max-h-96 overflow-y-auto">
+            {cartItems.map((item, index) => (
+              <div key={item.productId || index} className="py-3 border-b border-gray-100 last:border-0">
+                <div className="flex items-start gap-2">
+                  <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                    <img
+                      src={item.image || "/placeholder.svg"}
+                      alt={item.name}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                    
+                    {/* Sizes with quantity controls */}
+                    <div className="mt-2 space-y-2">
+                      {(item.sizes || [])
+                        .filter((s) => s.quantity > 0)
+                        .map((size) => (
+                          <div key={size.id} className="bg-gray-50 rounded p-2 space-y-1">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-medium text-gray-700">
+                                {size.size_value} {item.unitToggle ? size.size_unit : ""}
+                              </span>
+                              <span className="text-blue-600 font-semibold">
+                                ${(size.price || 0).toFixed(2)}
+                              </span>
+                            </div>
+                            
+                            {/* Quantity Controls */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() =>
+                                    handleQuantityChange(
+                                      item.productId,
+                                      size.quantity - 1,
+                                      size.id
+                                    )
+                                  }
+                                  disabled={size.quantity <= 1}
+                                  className="h-6 w-6 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </button>
+                                <span className="w-8 text-center text-sm font-medium">
+                                  {size.quantity}
+                                </span>
+                                <button
+                                  onClick={() =>
+                                    handleQuantityChange(
+                                      item.productId,
+                                      size.quantity + 1,
+                                      size.id
+                                    )
+                                  }
+                                  className="h-6 w-6 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </button>
+                              </div>
+                              <span className="text-xs font-semibold text-gray-900">
+                                ${((size.quantity || 0) * (size.price || 0)).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                    
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={() => handleViewDetails(item.productId)}
+                        className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                      >
+                        <Eye className="w-3 h-3" />
+                        View
+                      </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        onClick={() => handleRemoveItem(item.productId)}
+                        className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <span className="text-sm font-semibold text-blue-600">
-                  ${item.price?.toFixed(2)}
-                </span>
               </div>
             ))}
-            {cartItems.length > 5 && (
-              <p className="text-xs text-gray-500 text-center py-2">
-                +{cartItems.length - 5} more items
-              </p>
-            )}
           </div>
 
           <div className="p-3 bg-gray-50 border-t">
