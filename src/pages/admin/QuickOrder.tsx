@@ -8,6 +8,7 @@ import { useCart } from "@/hooks/use-cart";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { detectCardType, logPaymentTransaction, processPayment } from "@/services/paymentService";
 import axios from "../../../axiosconfig";
+import { assertCartStock } from "@/services/stockValidationService";
 
 export default function QuickOrder() {
   const navigate = useNavigate();
@@ -32,6 +33,7 @@ export default function QuickOrder() {
 
     try {
       console.log("Quick Order Data:", orderData);
+      await assertCartStock(orderData.cartItems || []);
 
       // Generate order ID
       const orderId = await generateOrderId();

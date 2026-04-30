@@ -445,6 +445,9 @@ export const CustomerAndAddressStep = ({
     }
   };
 
+  const showCompactOverviewCard =
+    compact && !isEditingBilling && !isEditingShipping && Boolean(billingForm.street) && Boolean(shippingForm.street);
+
   return (
     <div className={compact ? "space-y-4" : "space-y-6"}>
       {!compact && (
@@ -470,50 +473,221 @@ export const CustomerAndAddressStep = ({
       )}
 
       {/* Customer Info Card - Read-only */}
-      <Card className={compact ? "border-slate-200 shadow-sm" : "border-blue-200 bg-blue-50/30"}>
-        <CardHeader className={compact ? "pb-2 pt-3" : "pb-3"}>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <User className="w-4 h-4 text-blue-600" />
-              {isGroupMode ? "Selected Pharmacy Information" : "Your Information"}
-            </CardTitle>
-            <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-              <Lock className="w-3 h-3 mr-1" />
-              Verified
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className={compact ? "pt-0" : undefined}>
-          <div className={compact ? "grid grid-cols-2 gap-3 sm:grid-cols-4" : "grid grid-cols-2 sm:grid-cols-4 gap-6"}>
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Name</p>
-              <p className="text-sm font-medium text-gray-900">{customer?.name || "-"}</p>
+      {!showCompactOverviewCard && (
+        <Card className={compact ? "border-slate-200 shadow-sm" : "border-blue-200 bg-blue-50/30"}>
+          <CardHeader className={compact ? "pb-2 pt-3.5" : "pb-3"}>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className="w-4 h-4 text-blue-600" />
+                {isGroupMode ? "Selected Pharmacy Information" : "Your Information"}
+              </CardTitle>
+              <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                <Lock className="w-3 h-3 mr-1" />
+                Verified
+              </Badge>
             </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Company</p>
-              <p className="text-sm font-medium text-gray-900">{customer?.company_name || "-"}</p>
+          </CardHeader>
+          <CardContent className={compact ? "pt-0 pb-4" : undefined}>
+            <div className={compact ? "grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4" : "grid grid-cols-2 sm:grid-cols-4 gap-6"}>
+              <div className={compact ? "rounded-xl bg-slate-50 px-3 py-2.5" : ""}>
+                <p className="text-[11px] uppercase tracking-[0.08em] text-slate-500 mb-1">Name</p>
+                <p className="text-sm font-medium text-slate-900 break-words">{customer?.name || "-"}</p>
+              </div>
+              <div className={compact ? "rounded-xl bg-slate-50 px-3 py-2.5" : ""}>
+                <p className="text-[11px] uppercase tracking-[0.08em] text-slate-500 mb-1">Company</p>
+                <p className="text-sm font-medium text-slate-900 break-words">{customer?.company_name || "-"}</p>
+              </div>
+              <div className={compact ? "rounded-xl bg-slate-50 px-3 py-2.5 sm:col-span-2 xl:col-span-1" : ""}>
+                <p className="text-[11px] uppercase tracking-[0.08em] text-slate-500 mb-1">Email</p>
+                <p className="text-sm font-medium text-slate-900 break-all">{customer?.email || "-"}</p>
+              </div>
+              <div className={compact ? "rounded-xl bg-slate-50 px-3 py-2.5" : ""}>
+                <p className="text-[11px] uppercase tracking-[0.08em] text-slate-500 mb-1">Phone</p>
+                <p className="text-sm font-medium text-slate-900 break-words">{customer?.phone || "-"}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Email</p>
-              <p className="text-sm font-medium text-gray-900 break-words">{customer?.email || "-"}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {showCompactOverviewCard && (
+        <Card className="overflow-hidden border-slate-200 shadow-sm">
+          <CardHeader className="border-b border-slate-100 bg-gradient-to-r from-white via-slate-50 to-blue-50/60 pb-3 pt-3.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <User className="w-4 h-4 text-blue-600" />
+                  Customer and delivery overview
+                </CardTitle>
+                <p className="text-xs text-slate-500">Verified profile and delivery addresses, condensed for checkout.</p>
+              </div>
+              <Badge variant="secondary" className="border border-blue-200 bg-white/90 text-blue-700 shadow-sm">
+                <Lock className="w-3 h-3 mr-1" />
+                Verified
+              </Badge>
             </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">Phone</p>
-              <p className="text-sm font-medium text-gray-900">{customer?.phone || "-"}</p>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-3 pb-4">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+                <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">Name</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 break-words">{customer?.name || "-"}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+                <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">Company</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 break-words">{customer?.company_name || "-"}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm sm:col-span-2 xl:col-span-1">
+                <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">Email</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 break-all">{customer?.email || "-"}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+                <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">Phone</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 break-words">{customer?.phone || "-"}</p>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+
+            <div className="grid gap-3 xl:grid-cols-2">
+              <section className="rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-sm">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                      <MapPin className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-900">Billing Address</h4>
+                      <p className="text-[11px] text-slate-500">Used for invoice and billing records</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setIsEditingBilling(true)} className="h-8 rounded-full px-3 text-xs text-slate-600 hover:bg-slate-100">
+                    <Edit2 className="w-3 h-3 mr-1" /> Edit
+                  </Button>
+                </div>
+                {(validLocations.length > 0 || hasProfileBilling) && (
+                  <div className="mb-3 rounded-2xl bg-slate-50 p-2.5">
+                    <Label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                      <Building2 className="h-3.5 w-3.5" />
+                      Saved location
+                    </Label>
+                    <Select value={selectedBillingLocation} onValueChange={handleBillingLocationSelect}>
+                      <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-sm">
+                        <SelectValue placeholder="Choose a saved location..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {hasProfileBilling && (
+                          <SelectItem value="profile-billing">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-blue-600">Profile Billing Address</span>
+                              <span className="text-xs text-gray-500">
+                                {getStreet(profileBillingAddress)}, {profileBillingAddress?.city}, {profileBillingAddress?.state}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        )}
+                        {validLocations.map((location, index) => (
+                          <SelectItem key={location.id || index} value={location.id || location.name || `loc-${index}`}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{location.name || `Location ${index + 1}`}</span>
+                              <span className="text-xs text-gray-500">
+                                {getStreet(location.address)}, {location.address?.city}, {location.address?.state}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="rounded-2xl bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700">
+                  {(billingForm.company_name || billingForm.attention) && (
+                    <div className="space-y-0.5 pb-1">
+                      {billingForm.company_name && <p className="font-medium text-slate-900">{billingForm.company_name}</p>}
+                      {billingForm.attention && <p className="text-slate-500">Attn: {billingForm.attention}</p>}
+                    </div>
+                  )}
+                  <p>{billingForm.street}</p>
+                  <p>{billingForm.city}, {billingForm.state} {billingForm.zip_code}</p>
+                </div>
+              </section>
+
+              <section className="rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-sm">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                      <MapPin className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-900">Shipping Address</h4>
+                      <p className="text-[11px] text-slate-500">Where the order will be delivered</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => { setSameAsBilling(false); setIsEditingShipping(true); }} className="h-8 rounded-full px-3 text-xs text-slate-600 hover:bg-slate-100">
+                    <Edit2 className="w-3 h-3 mr-1" /> Edit
+                  </Button>
+                </div>
+                {(validLocations.length > 0 || hasProfileShipping) && (
+                  <div className="mb-3 rounded-2xl bg-slate-50 p-2.5">
+                    <Label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                      <Building2 className="h-3.5 w-3.5" />
+                      Saved location
+                    </Label>
+                    <Select value={selectedShippingLocation} onValueChange={handleShippingLocationSelect}>
+                      <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-sm">
+                        <SelectValue placeholder="Choose a saved location..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {hasProfileShipping && (
+                          <SelectItem value="profile-shipping">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-blue-600">Profile Shipping Address</span>
+                              <span className="text-xs text-gray-500">
+                                {getStreet(profileShippingAddress)}, {profileShippingAddress?.city}, {profileShippingAddress?.state}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        )}
+                        {validLocations.map((location, index) => (
+                          <SelectItem key={location.id || index} value={location.id || location.name || `loc-${index}`}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{location.name || `Location ${index + 1}`}</span>
+                              <span className="text-xs text-gray-500">
+                                {getStreet(location.address)}, {location.address?.city}, {location.address?.state}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="mb-3 flex items-center rounded-2xl bg-slate-50 px-3 py-2.5 space-x-2">
+                  <Checkbox id="same-billing-overview" checked={sameAsBilling} onCheckedChange={(c) => { setSameAsBilling(c as boolean); setSelectedShippingLocation(""); if (!(c as boolean)) setIsEditingShipping(true); }} disabled={!billingForm.street} />
+                  <Label htmlFor="same-billing-overview" className="text-sm font-medium">Same as billing</Label>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-3 py-3 text-sm leading-6">
+                  <p className="font-medium text-slate-900">{shippingForm.fullName}</p>
+                  <p className="text-slate-600 break-all">{shippingForm.email}</p>
+                  <p className="text-slate-600">{shippingForm.phone}</p>
+                  <p>{shippingForm.street}</p>
+                  <p>{shippingForm.city}, {shippingForm.state} {shippingForm.zip_code}</p>
+                  {sameAsBilling && <p className="pt-1 text-xs text-blue-600">Using billing address</p>}
+                </div>
+              </section>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {!compact && <Separator />}
 
       {/* Address Cards */}
+      {!showCompactOverviewCard && (
       <div className={compact ? "grid grid-cols-1 gap-3 xl:grid-cols-2" : "grid grid-cols-1 xl:grid-cols-2 gap-4"}>
         {/* Billing Address */}
         <Card className={`transition-all duration-300 ${compact && !isEditingBilling ? "shadow-sm" : ""} ${isEditingBilling ? "border-blue-500 shadow-lg" : ""}`}>
-          <CardHeader className={compact ? "pb-2 pt-3" : "pb-2"}>
+          <CardHeader className={compact ? "pb-2 pt-3.5" : "pb-2"}>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm flex items-center gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-blue-600" />
                 Billing Address
               </CardTitle>
@@ -524,10 +698,10 @@ export const CustomerAndAddressStep = ({
               )}
             </div>
           </CardHeader>
-          <CardContent className={compact ? "pt-0" : undefined}>
+          <CardContent className={compact ? "space-y-3 pt-0 pb-4" : undefined}>
             {/* Saved Locations Dropdown */}
             {(validLocations.length > 0 || hasProfileBilling) && (
-              <div className={`${compact ? "mb-3 p-2.5" : "mb-4 p-3"} bg-blue-50 border border-blue-200 rounded-lg`}>
+              <div className={`${compact ? "p-2.5" : "mb-4 p-3"} bg-blue-50 border border-blue-200 rounded-lg`}>
                 <Label className="text-xs text-blue-700 font-medium flex items-center gap-1.5 mb-2">
                   <Building2 className="h-3.5 w-3.5" />
                   Select Saved Location
@@ -622,9 +796,9 @@ export const CustomerAndAddressStep = ({
                 </Button>
               </div>
             ) : billingForm.street ? (
-              <div className={compact ? "space-y-1.5 text-sm leading-6" : "text-sm space-y-1"}>
+              <div className={compact ? "rounded-xl bg-slate-50 px-3 py-3 text-sm leading-6" : "text-sm space-y-1"}>
                 {(billingForm.company_name || billingForm.attention) && (
-                  <div className="space-y-0.5">
+                  <div className="space-y-0.5 pb-1">
                     {billingForm.company_name && <p className="font-medium text-slate-900">{billingForm.company_name}</p>}
                     {billingForm.attention && <p className="text-slate-500">Attn: {billingForm.attention}</p>}
                   </div>
@@ -642,9 +816,9 @@ export const CustomerAndAddressStep = ({
 
         {/* Shipping Address */}
         <Card className={`transition-all duration-300 ${compact && !isEditingShipping ? "shadow-sm" : ""} ${isEditingShipping ? "border-blue-500 shadow-lg" : ""}`}>
-          <CardHeader className={compact ? "pb-2 pt-3" : "pb-2"}>
+          <CardHeader className={compact ? "pb-2 pt-3.5" : "pb-2"}>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm flex items-center gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-blue-600" />
                 Shipping Address
               </CardTitle>
@@ -655,10 +829,10 @@ export const CustomerAndAddressStep = ({
               )}
             </div>
           </CardHeader>
-          <CardContent className={compact ? "pt-0" : undefined}>
+          <CardContent className={compact ? "space-y-3 pt-0 pb-4" : undefined}>
             {/* Saved Locations Dropdown */}
             {(validLocations.length > 0 || hasProfileShipping) && (
-              <div className={`${compact ? "mb-3 p-2.5" : "mb-4 p-3"} bg-blue-50 border border-blue-200 rounded-lg`}>
+              <div className={`${compact ? "p-2.5" : "mb-4 p-3"} bg-blue-50 border border-blue-200 rounded-lg`}>
                 <Label className="text-xs text-blue-700 font-medium flex items-center gap-1.5 mb-2">
                   <Building2 className="h-3.5 w-3.5" />
                   Select Saved Location
@@ -695,7 +869,7 @@ export const CustomerAndAddressStep = ({
             )}
             <div className={compact ? "space-y-3" : "space-y-4"}>
               {/* Same as Billing Checkbox */}
-              <div className="flex items-center space-x-2">
+              <div className={compact ? "flex items-center rounded-xl bg-slate-50 px-3 py-2.5 space-x-2" : "flex items-center space-x-2"}>
                 <Checkbox id="same-billing" checked={sameAsBilling} onCheckedChange={(c) => { setSameAsBilling(c as boolean); setSelectedShippingLocation(""); if (!c) setIsEditingShipping(true); }} disabled={!billingForm.street} />
                 <Label htmlFor="same-billing" className={compact ? "text-sm font-medium" : "text-sm"}>Same as billing address</Label>
               </div>
@@ -769,13 +943,13 @@ export const CustomerAndAddressStep = ({
                   </Button>
                 </div>
               ) : shippingForm.street ? (
-                <div className="text-sm space-y-1">
-                  <p className="font-medium">{shippingForm.fullName}</p>
-                  <p className="text-gray-600">{shippingForm.email}</p>
-                  <p className="text-gray-600">{shippingForm.phone}</p>
+                <div className={compact ? "rounded-xl bg-slate-50 px-3 py-3 text-sm leading-6" : "text-sm space-y-1"}>
+                  <p className={compact ? "font-medium text-slate-900" : "font-medium"}>{shippingForm.fullName}</p>
+                  <p className={compact ? "text-slate-600 break-all" : "text-gray-600"}>{shippingForm.email}</p>
+                  <p className={compact ? "text-slate-600" : "text-gray-600"}>{shippingForm.phone}</p>
                   <p>{shippingForm.street}</p>
                   <p>{shippingForm.city}, {shippingForm.state} {shippingForm.zip_code}</p>
-                  {sameAsBilling && <p className="text-xs text-blue-600 mt-2">✓ Same as billing address</p>}
+                  {sameAsBilling && <p className="mt-2 text-xs text-blue-600">Same as billing address</p>}
                 </div>
               ) : (
                 <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>Please enter shipping address</AlertDescription></Alert>
@@ -784,6 +958,7 @@ export const CustomerAndAddressStep = ({
           </CardContent>
         </Card>
       </div>
+      )}
     </div>
   );
 };

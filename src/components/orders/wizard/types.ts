@@ -74,6 +74,8 @@ export interface Customer {
   type: "Pharmacy" | "Hospital" | "Group";
   company_name?: string;
   credit_status?: string | null;
+  credit_limit?: number;
+  credit_used?: number;
   billing_address?: {
     street?: string;
     street1?: string;

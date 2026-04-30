@@ -35,6 +35,7 @@ import { InvoiceStatus } from "./invoices/types/invoice.types";
 import { useNavigate } from "react-router-dom";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { awardOrderPoints, calculateOrderPoints } from "@/services/rewardsService";
+import { assertCartStock } from "@/services/stockValidationService";
 import {
   getSavedPaymentMethods,
   SavedPaymentMethod,
@@ -662,6 +663,7 @@ const CreateOrderPaymentForm = ({
 
     try {
       const cleanedCartItems = cleanCartItems(cartItems);
+      await assertCartStock(cleanedCartItems);
       const customerName =
         (paymentType === "credit_card" ? formData.cardholderName : formData.nameOnAccount) ||
         formDataa?.customerInfo?.name ||
@@ -727,6 +729,7 @@ const CreateOrderPaymentForm = ({
     invoiceNumber: string
   ) => {
     try {
+      await assertCartStock(cleanedCartItems);
       const data = formDataa;
       validateOrderItems(data.items);
 

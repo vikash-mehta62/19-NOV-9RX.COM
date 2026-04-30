@@ -14,6 +14,7 @@ import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
 import { REWARD_REDEMPTION_STATUS } from "@/lib/rewards";
 import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
 import { useCart } from "@/hooks/use-cart";
+import { assertCartStock } from "@/services/stockValidationService";
 
 // Invoice creation function for paid orders
 const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount: number) => {
@@ -215,6 +216,8 @@ export default function CreateOrder() {
     
     
     try {
+      await assertCartStock(orderData.cartItems || []);
+
       // Get current session
       const {
         data: { session },

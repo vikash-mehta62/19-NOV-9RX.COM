@@ -15,6 +15,7 @@ import axios from "../../../axiosconfig";
 import { useDispatch } from "react-redux";
 import { setUserProfile } from "@/store/actions/userAction";
 import { REWARD_REDEMPTION_STATUS } from "@/lib/rewards";
+import { assertCartStock } from "@/services/stockValidationService";
 
 // Invoice creation function for paid orders
 const createInvoiceForPaidOrder = async (order: any, totalAmount: number, taxAmount: number, retryCount = 0): Promise<void> => {
@@ -142,6 +143,8 @@ export default function PharmacyCreateOrder() {
               tax_percentage: profile.taxPercantage || 0,
               freeShipping: profile.freeShipping || false,
               credit_status: profile.credit_status || null,
+              credit_limit: profile.credit_limit || 0,
+              credit_used: profile.credit_used || 0,
             },
             customerId: profile.id,
             billingAddress: {
@@ -189,6 +192,8 @@ export default function PharmacyCreateOrder() {
     console.log("Applied discounts:", orderData.appliedDiscounts);
     
     try {
+      await assertCartStock(orderData.cartItems || []);
+
       // Calculate final total using single source of truth
       const finalTotal = calculateFinalTotal({
         subtotal: orderData.subtotal || 0,

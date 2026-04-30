@@ -13,6 +13,7 @@ import { useDispatch } from "react-redux";
 import { setUserProfile } from "@/store/actions/userAction";
 import { REWARD_REDEMPTION_STATUS } from "@/lib/rewards";
 import { useCart } from "@/hooks/use-cart";
+import { assertCartStock } from "@/services/stockValidationService";
 
 // Invoice creation function for paid orders (when total is 0)
 const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount: number) => {
@@ -188,6 +189,8 @@ export default function PharmacyOrder() {
     console.log("🔵 Final total (after discount):", orderData.total - (orderData.totalDiscount || 0));
     
     try {
+      await assertCartStock(orderData.cartItems || []);
+
       // Get current session
       const { data: { session } } = await supabase.auth.getSession();
 

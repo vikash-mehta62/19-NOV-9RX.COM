@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { assertCartStock } from "@/services/stockValidationService";
 
 export default function PaymentCallback() {
   const [searchParams] = useSearchParams();
@@ -273,7 +274,7 @@ export default function PaymentCallback() {
       setLoading(false);
     } catch (error) {
       console.error("Payment callback error:", error);
-      toast.error("Error processing payment callback");
+      toast.error(error instanceof Error ? error.message : "Error processing payment callback");
       setProcessing(false);
       setLoading(false);
     }
@@ -526,6 +527,7 @@ export default function PaymentCallback() {
   ) => {
     const data = pendingPayment.formDataa;
     const cleanedCartItems = pendingPayment.cartItems || data?.items || [];
+    await assertCartStock(cleanedCartItems);
     const orderSubtotal = Number(pendingPayment.orderSubtotal || 0);
     const taxAmount = Number(pendingPayment.orderTax || 0);
     const shippingAmount = Number(pendingPayment.orderShipping || 0);

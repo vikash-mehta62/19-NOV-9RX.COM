@@ -48,6 +48,8 @@ export interface PaymentConfirmationStepProps {
   isAdmin?: boolean;
   compact?: boolean;
   showCreditAccount?: boolean;
+  creditLimit?: number;
+  availableCredit?: number;
 }
 
 interface PaymentMethodCard {
@@ -80,6 +82,8 @@ export const PaymentConfirmationStep = ({
   isAdmin = false,
   compact = false,
   showCreditAccount = true,
+  creditLimit = 0,
+  availableCredit = 0,
 }: PaymentConfirmationStepProps) => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>(initialPaymentMethod);
   const [specialInstructions, setSpecialInstructions] = useState(initialSpecialInstructions);
@@ -117,6 +121,7 @@ export const PaymentConfirmationStep = ({
     feeSettings.cardProcessingFeePercentage > 0;
   const displayCardFeePercentage = Math.round(feeSettings.cardProcessingFeePercentage);
   const orderTotal = Math.max(0, total - totalDiscount);
+  const hasCreditSummary = creditLimit > 0 || availableCredit > 0;
 
   const allPaymentMethods: PaymentMethodCard[] = [
     {
@@ -197,6 +202,12 @@ export const PaymentConfirmationStep = ({
           ? "Credit Account"
           : "Manual Payment";
 
+  const compactCheckoutSteps = [
+    "Order details are saved first.",
+    "You review payer details once on secure checkout.",
+    "Payment completes on iPOSPay and returns automatically.",
+  ];
+
   return (
     <div className={compact ? "space-y-4" : "space-y-4 sm:space-y-6"}>
       {!compact && (
@@ -212,7 +223,7 @@ export const PaymentConfirmationStep = ({
       )}
 
       <Card className={compact ? "border-slate-200 bg-slate-50 shadow-sm" : "border-slate-200 bg-slate-50"}>
-        <CardContent className={compact ? "space-y-3 p-4" : "space-y-3 p-4 sm:p-5"}>
+        <CardContent className={compact ? "space-y-3 p-3.5 sm:p-4" : "space-y-3 p-4 sm:p-5"}>
           <div className="flex items-start gap-3">
             <div className="rounded-full bg-blue-100 p-2 text-blue-700">
               <Lock className="h-4 w-4" />
@@ -323,6 +334,26 @@ export const PaymentConfirmationStep = ({
                             </Badge>
                           </div>
                         )}
+                        {method.id === "credit" && hasCreditSummary && (
+                          <div className="grid gap-2 pt-1 sm:grid-cols-2">
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-emerald-700">
+                                Available
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-emerald-900">
+                                ${availableCredit.toFixed(2)}
+                              </p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-slate-600">
+                                Max limit
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-slate-900">
+                                ${creditLimit.toFixed(2)}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -335,9 +366,9 @@ export const PaymentConfirmationStep = ({
 
       {!hidePaymentMethodChooser && (selectedPaymentMethod === "card" || selectedPaymentMethod === "ach") && (
         <Card className={compact ? "shadow-sm" : ""}>
-          <CardHeader>
-            <CardTitle>Pay with iPOSPay</CardTitle>
-          </CardHeader>
+          {/* <CardHeader> */}
+            <CardTitle className=" px-4 py-2 text-lg">Pay with iPOSPay</CardTitle>
+          {/* </CardHeader> */}
           <CardContent>
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
               Complete payment on secure iPOSPay using either card or ACH. ACH is fee-free; card fees, if applicable, are shown before final confirmation.
@@ -372,43 +403,54 @@ export const PaymentConfirmationStep = ({
         </Card>
       )}
 
-      <Card className={compact ? "shadow-sm" : ""}>
-        <CardHeader>
+      <Card className={compact ? "overflow-hidden shadow-sm" : ""}>
+        <CardHeader className={compact ? "border-b border-slate-100 bg-slate-50/80 px-4 py-2" : ""}>
           <CardTitle>Order Notes</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="specialInstructions" className="text-sm text-gray-700">
-              Special instructions
-            </Label>
-            <Textarea
-              id="specialInstructions"
-              placeholder="Add delivery notes or special requests..."
-              className="mt-2 min-h-24"
-              value={specialInstructions}
-              onChange={(e) => handleSpecialInstructionsChange(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="poNumber" className="text-sm text-gray-700">
-              Purchase order number
-            </Label>
-            <Input
-              id="poNumber"
-              placeholder="PO-2024-001"
-              className="mt-2"
-              value={poNumber}
-              onChange={(e) => handlePONumberChange(e.target.value)}
-            />
+        <CardContent className={compact ? "px-4 pb-2.5 pt-1.5" : "pt-4"}>
+          <div className={compact ? "grid items-start gap-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,0.8fr)]" : "grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)] lg:items-start"}>
+            <div className="space-y-1.5 self-start">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="specialInstructions" className="text-sm font-medium text-slate-700">
+                  Special instructions
+                </Label>
+                <span className="text-[11px] text-slate-400">Optional</span>
+              </div>
+              <Textarea
+                id="specialInstructions"
+                placeholder="Add delivery notes or special requests..."
+                className={compact ? "min-h-[72px] rounded-2xl border-slate-200 bg-white" : "min-h-24 rounded-2xl border-slate-200 bg-white"}
+                value={specialInstructions}
+                onChange={(e) => handleSpecialInstructionsChange(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5 self-start">
+              <Label htmlFor="poNumber" className="text-sm font-medium text-slate-700">
+                Purchase order number
+              </Label>
+              <div className={compact ? "rounded-2xl border border-slate-200 bg-slate-50 p-2.5" : "rounded-2xl border border-slate-200 bg-slate-50 p-3"}>
+                <Input
+                  id="poNumber"
+                  placeholder="PO-2024-001"
+                  className={compact ? "h-9 border-slate-200 bg-white" : "border-slate-200 bg-white"}
+                  value={poNumber}
+                  onChange={(e) => handlePONumberChange(e.target.value)}
+                />
+                {/* <p className={compact ? "mt-1.5 text-xs leading-4 text-slate-500" : "mt-2 text-xs leading-5 text-slate-500"}>
+                  Add a PO only if your internal process requires it.
+                </p> */}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       <Card className={compact ? "border border-amber-200 bg-amber-50 shadow-sm" : "border-2 border-amber-200 bg-amber-50"}>
-        <CardHeader>
-          <CardTitle>Order Confirmation</CardTitle>
+        <CardHeader className={compact ? "px-4 py-2.5" : ""}>
+          <CardTitle >Order Confirmation</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className={compact ? "space-y-3 px-4 pb-3 pt-0" : "space-y-4"}>
           <div className="flex items-start gap-3">
             <Checkbox
               id="termsAccepted"
@@ -500,6 +542,40 @@ export const PaymentConfirmationStep = ({
               {totalDiscount > 0 && (
                 <div className="text-right text-sm text-blue-600">You save: ${totalDiscount.toFixed(2)}</div>
               )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : compact ? (
+        <Card className="overflow-hidden border-blue-200 bg-gradient-to-br from-blue-50 via-white to-sky-50 shadow-sm">
+          <CardContent className="space-y-4 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-blue-900">
+                  <ArrowRight className="h-4 w-4" />
+                  <span className="text-sm font-semibold">Checkout flow</span>
+                </div>
+                <p className="text-sm leading-6 text-slate-600">
+                  One quick redirect to secure iPOSPay completes the payment step.
+                </p>
+              </div>
+              <Badge className="shrink-0 rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100">
+                {selectedMethodLabel}
+              </Badge>
+            </div>
+            <div className="grid gap-2">
+              {compactCheckoutSteps.map((step) => (
+                <div
+                  key={step}
+                  className="flex items-start gap-2 rounded-xl border border-white/80 bg-white/80 px-3 py-2.5 text-sm text-slate-700"
+                >
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                  <span>{step}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-100/70 px-3 py-2 text-xs text-blue-900">
+              <AlertCircle className="h-4 w-4 text-blue-700" />
+              <span>You confirm the final amount before payment is submitted.</span>
             </div>
           </CardContent>
         </Card>

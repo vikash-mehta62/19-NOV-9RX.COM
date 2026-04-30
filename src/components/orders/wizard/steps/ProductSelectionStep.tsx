@@ -207,6 +207,7 @@ const ProductSelectionStepComponent = ({
   const [tempNotes, setTempNotes] = useState("");
   const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+  const [isAddingBySize, setIsAddingBySize] = useState<Record<string, boolean>>({});
   
   // Mobile/Tablet tab state
   const [mobileActiveTab, setMobileActiveTab] = useState<"categories" | "products" | "cart">("products");
@@ -447,13 +448,56 @@ const ProductSelectionStepComponent = ({
     }
   }, [expandedProduct]);
 
+  const getAvailableStock = useCallback((sizeId: string) => {
+    for (const product of products) {
+      const matchingSize = product.product_sizes?.find((size) => size.id === sizeId);
+      if (matchingSize) {
+        return Math.max(0, Number(matchingSize.stock || 0));
+      }
+    }
+    return 0;
+  }, [products]);
+
+  const getCartQuantityForSize = useCallback((sizeId: string) => {
+    return cartItems.reduce((total, item) => {
+      const matchingSize = item.sizes?.find((size: { id?: string; quantity?: number }) => size.id === sizeId);
+      return total + Number(matchingSize?.quantity || 0);
+    }, 0);
+  }, [cartItems]);
+
   // Add product size to order
   const handleAddSize = useCallback(async (product: Product, size: ProductSize, type: "unit" | "case") => {
+    if (isAddingBySize[size.id]) {
+      return;
+    }
+
+    const availableStock = Math.max(0, Number(size.stock || 0));
+    if (availableStock <= 0) {
+      toast({
+        title: "Out of Stock",
+        description: "This size is currently out of stock",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const cartQuantity = getCartQuantityForSize(size.id);
+    if (cartQuantity >= availableStock) {
+      toast({
+        title: "Stock limit reached",
+        description: `Only ${availableStock} unit${availableStock === 1 ? "" : "s"} available for this size`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const price = type === "case" ? size.price : size.price_per_case;
     // Use original size ID directly - no need for suffix since only one type is used
     const sizeId = size.id;
     
     try {
+      setIsAddingBySize((prev) => ({ ...prev, [size.id]: true }));
+
       const cartItem = {
         productId: product.id,
         name: product.name,
@@ -477,7 +521,12 @@ const ProductSelectionStepComponent = ({
         shipping_cost: 0,
       };
       
-      await addToCart(cartItem);
+      const success = await addToCart(cartItem);
+      if (!success) {
+        toast({ title: "Error", description: "Failed to add product", variant: "destructive" });
+        return;
+      }
+
       onCartUpdate?.();
       toast({
         title: "Added to Order",
@@ -485,12 +534,34 @@ const ProductSelectionStepComponent = ({
       });
     } catch (error) {
       toast({ title: "Error", description: "Failed to add product", variant: "destructive" });
+    } finally {
+      setIsAddingBySize((prev) => ({ ...prev, [size.id]: false }));
     }
-  }, [addToCart, onCartUpdate, toast]);
+  }, [addToCart, getCartQuantityForSize, isAddingBySize, onCartUpdate, toast]);
 
   // Update quantity
   const handleQuantityChange = useCallback(async (productId: string, sizeId: string, newQuantity: number) => {
     if (newQuantity < 1) return;
+
+    const availableStock = getAvailableStock(sizeId);
+    if (availableStock <= 0) {
+      toast({
+        title: "Out of Stock",
+        description: "This size is currently out of stock",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newQuantity > availableStock) {
+      toast({
+        title: "Stock limit reached",
+        description: `Only ${availableStock} unit${availableStock === 1 ? "" : "s"} available for this size`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       await updateQuantity(productId, newQuantity, sizeId);
       const key = `${productId}:${sizeId}`;
@@ -504,7 +575,7 @@ const ProductSelectionStepComponent = ({
     } catch (error) {
       toast({ title: "Error", description: "Failed to update quantity", variant: "destructive" });
     }
-  }, [updateQuantity, onCartUpdate, toast]);
+  }, [getAvailableStock, updateQuantity, onCartUpdate, toast]);
 
   const getQuantityKey = useCallback((productId: string, sizeId: string) => `${productId}:${sizeId}`, []);
 
@@ -761,7 +832,7 @@ const ProductSelectionStepComponent = ({
                           {expandedProduct === product.id && product.product_sizes && (
                             <div className="border-t bg-gray-50 p-3 grid grid-cols-2 gap-2">
                               {product.product_sizes.map((size) => (
-                                <div key={size.id} className="bg-white rounded-lg p-3 border">
+                                <div key={size.id} className={`bg-white rounded-lg p-3 border ${Number(size.stock || 0) <= 0 || getCartQuantityForSize(size.id) >= Number(size.stock || 0) || isAddingBySize[size.id] ? "opacity-60" : ""}`}>
                                   <div className="flex items-center justify-between mb-2">
                                     <div>
                                       <p className="text-sm font-semibold text-gray-900">{getSizeLabel(size, product.unitToggle)}</p>
@@ -769,8 +840,15 @@ const ProductSelectionStepComponent = ({
                                     </div>
                                     <p className="text-lg text-emerald-600 font-bold">${size.price?.toFixed(2)}</p>
                                   </div>
-                                  <Button size="sm" className="h-10 w-full bg-blue-600 hover:bg-blue-700" onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "case"); setMobileActiveTab("cart"); }}>
-                                    <Plus className="w-4 h-4 mr-1.5" />Add to Cart
+                                  <p className={`mb-2 text-xs font-medium ${Number(size.stock || 0) <= 0 ? "text-red-600" : "text-emerald-600"}`}>
+                                    {Number(size.stock || 0) <= 0
+                                      ? "Out of Stock"
+                                      : getCartQuantityForSize(size.id) >= Number(size.stock || 0)
+                                        ? `Stock limit reached (${Number(size.stock || 0)})`
+                                        : `In Stock (${Number(size.stock || 0)})`}
+                                  </p>
+                                  <Button size="sm" className="h-10 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-500" onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "case"); setMobileActiveTab("cart"); }} disabled={Number(size.stock || 0) <= 0 || getCartQuantityForSize(size.id) >= Number(size.stock || 0) || isAddingBySize[size.id]}>
+                                    <Plus className="w-4 h-4 mr-1.5" />{isAddingBySize[size.id] ? "Adding..." : Number(size.stock || 0) <= 0 || getCartQuantityForSize(size.id) >= Number(size.stock || 0) ? "Unavailable" : "Add to Cart"}
                                   </Button>
                                 </div>
                               ))}
@@ -808,7 +886,7 @@ const ProductSelectionStepComponent = ({
                           {expandedProduct === product.id && product.product_sizes && (
                             <div className="border-t bg-gray-50 p-2 space-y-2">
                               {product.product_sizes.map((size) => (
-                                <div key={size.id} className="bg-white rounded-lg p-3 border">
+                                <div key={size.id} className={`bg-white rounded-lg p-3 border ${Number(size.stock || 0) <= 0 || getCartQuantityForSize(size.id) >= Number(size.stock || 0) || isAddingBySize[size.id] ? "opacity-60" : ""}`}>
                                   <div className="flex items-center justify-between">
                                     <div>
                                       <p className="text-sm font-semibold text-gray-900">{getSizeLabel(size, product.unitToggle)}</p>
@@ -816,8 +894,15 @@ const ProductSelectionStepComponent = ({
                                     </div>
                                     <p className="text-base text-emerald-600 font-bold">${size.price?.toFixed(2)}</p>
                                   </div>
-                                  <Button size="sm" className="mt-2 h-10 w-full bg-blue-600 hover:bg-blue-700" onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "case"); setMobileActiveTab("cart"); }}>
-                                    <Plus className="w-4 h-4 mr-1.5" />Add to Cart
+                                  <p className={`mt-2 text-xs font-medium ${Number(size.stock || 0) <= 0 ? "text-red-600" : "text-emerald-600"}`}>
+                                    {Number(size.stock || 0) <= 0
+                                      ? "Out of Stock"
+                                      : getCartQuantityForSize(size.id) >= Number(size.stock || 0)
+                                        ? `Stock limit reached (${Number(size.stock || 0)})`
+                                        : `In Stock (${Number(size.stock || 0)})`}
+                                  </p>
+                                  <Button size="sm" className="mt-2 h-10 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-500" onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "case"); setMobileActiveTab("cart"); }} disabled={Number(size.stock || 0) <= 0 || getCartQuantityForSize(size.id) >= Number(size.stock || 0) || isAddingBySize[size.id]}>
+                                    <Plus className="w-4 h-4 mr-1.5" />{isAddingBySize[size.id] ? "Adding..." : Number(size.stock || 0) <= 0 || getCartQuantityForSize(size.id) >= Number(size.stock || 0) ? "Unavailable" : "Add to Cart"}
                                   </Button>
                                 </div>
                               ))}
@@ -887,11 +972,14 @@ const ProductSelectionStepComponent = ({
                                     }}
                                     className="h-10 w-20 min-w-[5rem] border-0 rounded-none px-1 text-center text-base font-semibold tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                   />
-                                  <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)}>
+                                  <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)} disabled={size.quantity >= getAvailableStock(size.id)}>
                                     <Plus className="w-4 h-4" />
                                   </Button>
                                 </div>
                               </div>
+                              <p className={`mt-2 text-center text-xs ${getAvailableStock(size.id) <= 0 ? "text-red-600" : "text-gray-500"}`}>
+                                {getAvailableStock(size.id) <= 0 ? "Out of Stock" : `${getAvailableStock(size.id)} available`}
+                              </p>
                               <div className="mt-2 flex items-center justify-between gap-2">
                                 <span className="text-xs text-gray-500">Unit Price</span>
                                 <div className="flex items-center gap-1">
@@ -961,11 +1049,14 @@ const ProductSelectionStepComponent = ({
                                     }}
                                     className="h-10 w-20 min-w-[5rem] border-0 rounded-none px-1 text-center text-base font-semibold tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                   />
-                                  <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)}>
+                                  <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)} disabled={size.quantity >= getAvailableStock(size.id)}>
                                     <Plus className="w-4 h-4" />
                                   </Button>
                                 </div>
                               </div>
+                              <p className={`mt-2 text-center text-xs ${getAvailableStock(size.id) <= 0 ? "text-red-600" : "text-gray-500"}`}>
+                                {getAvailableStock(size.id) <= 0 ? "Out of Stock" : `${getAvailableStock(size.id)} available`}
+                              </p>
                               <div className="mt-2 flex items-center justify-between gap-2">
                                 <span className="text-xs text-gray-500">Unit Price</span>
                                 <div className="flex items-center gap-1">
@@ -1164,7 +1255,7 @@ const ProductSelectionStepComponent = ({
                       {expandedProduct === product.id && product.product_sizes && (
                         <div className={cn("border-t bg-gray-50", isLaptop ? "p-1 space-y-1" : "p-2 space-y-2")}>
                           {product.product_sizes.map((size) => (
-                            <div key={size.id} className={cn("bg-white rounded-lg border text-center", isLaptop ? "p-1.5" : "p-3")}>
+                            <div key={size.id} className={cn("bg-white rounded-lg border text-center", (Number(size.stock || 0) <= 0 || getCartQuantityForSize(size.id) >= Number(size.stock || 0) || isAddingBySize[size.id]) && "opacity-60", isLaptop ? "p-1.5" : "p-3")}>
                               <p className={cn("font-semibold text-gray-900", isLaptop ? "text-[11px]" : "text-sm")}>
                                 {getPrimarySizeName(size, product.unitToggle, product.name)}
                               </p>
@@ -1181,13 +1272,21 @@ const ProductSelectionStepComponent = ({
                               <p className={cn("text-emerald-600 font-bold mt-0.5", isLaptop ? "text-xs" : "text-base")}>
                                 ${size.price?.toFixed(2)}
                               </p>
+                              <p className={cn("font-medium", Number(size.stock || 0) <= 0 ? "text-red-600" : "text-emerald-600", isLaptop ? "mt-0.5 text-[9px]" : "mt-1 text-xs")}>
+                                {Number(size.stock || 0) <= 0
+                                  ? "Out of Stock"
+                                  : getCartQuantityForSize(size.id) >= Number(size.stock || 0)
+                                    ? `Stock limit reached (${Number(size.stock || 0)})`
+                                    : `In Stock (${Number(size.stock || 0)})`}
+                              </p>
                               <Button 
                                 size="sm" 
-                                className={cn("w-full bg-blue-600 hover:bg-blue-700", isLaptop ? "mt-1 h-6 text-[10px]" : "mt-2 h-9")}
+                                className={cn("w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-500", isLaptop ? "mt-1 h-6 text-[10px]" : "mt-2 h-9")}
                                 onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "case"); }}
+                                disabled={Number(size.stock || 0) <= 0 || getCartQuantityForSize(size.id) >= Number(size.stock || 0) || isAddingBySize[size.id]}
                               >
                                 <Plus className={cn(isLaptop ? "w-2.5 h-2.5 mr-0.5" : "w-4 h-4 mr-1.5")} />
-                                Add
+                                {isAddingBySize[size.id] ? "Adding..." : Number(size.stock || 0) <= 0 || getCartQuantityForSize(size.id) >= Number(size.stock || 0) ? "Unavailable" : "Add"}
                               </Button>
                             </div>
                           ))}
@@ -1292,11 +1391,15 @@ const ProductSelectionStepComponent = ({
                                 size="sm" 
                                 className={cn("p-0 rounded-none hover:bg-gray-100", isLaptop ? "h-5 w-6" : "h-8 w-10")}
                                 onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)}
+                                disabled={size.quantity >= getAvailableStock(size.id)}
                               >
                                 <Plus className={cn(isLaptop ? "w-2.5 h-2.5" : "w-4 h-4")} />
                               </Button>
                             </div>
                           </div>
+                          <p className={cn("mt-1 text-center", getAvailableStock(size.id) <= 0 ? "text-red-600" : "text-gray-500", isLaptop ? "text-[9px]" : "text-xs")}>
+                            {getAvailableStock(size.id) <= 0 ? "Out of Stock" : `${getAvailableStock(size.id)} available`}
+                          </p>
                           <div className={cn("mt-1 flex items-center justify-between gap-2", isLaptop ? "text-[9px]" : "text-xs")}>
                             <span className="text-gray-500">Unit Price</span>
                             <div className="flex items-center gap-1">

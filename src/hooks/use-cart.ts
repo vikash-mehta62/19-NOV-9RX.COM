@@ -1,16 +1,55 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { useMemo } from 'react';
-import { RootState } from '@/store/store';
+import { RootState, store } from '@/store/store';
 import { addToCart as addToCartAction, removeFromCart as removeFromCartAction, updateQuantity as updateQuantityAction, clearCart as clearCartAction, updateCartDescription as updateDescriptionAction,} from '@/store/actions/cartActions';
 import { CartItem } from '@/store/types/cartTypes';
+import { assertCartStock } from '@/services/stockValidationService';
 
 export const useCart = () => {
   const dispatch = useDispatch();
   const cartItems = useSelector((state: RootState) => state.cart.items);
 const lastActionAt = useSelector((state: RootState) => state.cart.lastActionAt);
 
+  const getCurrentCartItems = () => store.getState().cart.items;
+
+  const buildNextCartItemsForAdd = (currentItems: CartItem[], item: CartItem) => {
+    const existingItem = currentItems.find((currentItem) => currentItem.productId === item.productId);
+
+    if (!existingItem) {
+      return [...currentItems, item];
+    }
+
+    return currentItems.map((currentItem) => {
+      if (currentItem.productId !== item.productId) {
+        return currentItem;
+      }
+
+      const nextSizes = (currentItem.sizes || []).map((size) => ({ ...size }));
+      for (const incomingSize of item.sizes || []) {
+        const matchingSize = nextSizes.find(
+          (size: { id?: string; type?: string; quantity?: number }) =>
+            size.id === incomingSize.id && size.type === incomingSize.type
+        );
+
+        if (matchingSize) {
+          matchingSize.quantity = Number(matchingSize.quantity || 0) + Number(incomingSize.quantity || 0);
+        } else {
+          nextSizes.push({ ...incomingSize });
+        }
+      }
+
+      return {
+        ...currentItem,
+        sizes: nextSizes,
+      };
+    });
+  };
+
   const addToCart = async (item: CartItem) => {
     try {
+      if (Array.isArray(item?.sizes) && item.sizes.length > 0) {
+        await assertCartStock(buildNextCartItemsForAdd(getCurrentCartItems(), item));
+      }
       dispatch(addToCartAction(item));
       return true;
     } catch (error) {
@@ -32,6 +71,19 @@ const lastActionAt = useSelector((state: RootState) => state.cart.lastActionAt);
   const updateQuantity = async (productId: string, quantity: number,sizeId: string) => {
     try {
       if (quantity < 1) return false;
+      const nextCartItems = getCurrentCartItems().map((item) => {
+        if (item.productId !== productId) {
+          return item;
+        }
+
+        return {
+          ...item,
+          sizes: (item.sizes || []).map((size: { id?: string; quantity?: number }) =>
+            size.id === sizeId ? { ...size, quantity } : size
+          ),
+        };
+      });
+      await assertCartStock(nextCartItems);
       dispatch(updateQuantityAction(productId, quantity,sizeId));
       return true;
     } catch (error) {

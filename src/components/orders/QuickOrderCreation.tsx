@@ -23,6 +23,7 @@ import { useCart } from "@/hooks/use-cart";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { calculateSubtotal, calculateShipping, calculateTax, calculateFinalTotal } from "@/utils/orderCalculations";
+import { assertCartStock } from "@/services/stockValidationService";
 import CustomProductForm from "@/components/orders/Customitems";
 
 // Types
@@ -216,6 +217,8 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
   const [productSearch, setProductSearch] = useState("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [showCustomProductDialog, setShowCustomProductDialog] = useState(false);
+  const [isAddingBySize, setIsAddingBySize] = useState<Record<string, boolean>>({});
+  const [quantityInputs, setQuantityInputs] = useState<Record<string, string>>({});
 
   // Fetch customers
   useEffect(() => {
@@ -341,6 +344,18 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
     return { subtotal, tax, shipping, total, itemCount };
   }, [cartItems, selectedCustomer, shippingSettings, profileShippingSettings]);
 
+  useEffect(() => {
+    const nextInputs: Record<string, string> = {};
+    cartItems.forEach((item) => {
+      item.sizes?.forEach((size: any) => {
+        if (size?.id) {
+          nextInputs[size.id] = String(size.quantity ?? 1);
+        }
+      });
+    });
+    setQuantityInputs(nextInputs);
+  }, [cartItems]);
+
   // Handlers
   const handleCustomerSelect = useCallback(async (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -390,8 +405,51 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
     setCurrentStep("search");
   }, []);
 
+  const getAvailableStock = useCallback((sizeId: string) => {
+    for (const product of products) {
+      const matchingSize = product.product_sizes?.find((size) => size.id === sizeId);
+      if (matchingSize) {
+        return Math.max(0, Number(matchingSize.stock || 0));
+      }
+    }
+    return 0;
+  }, [products]);
+
+  const getCartQuantityForSize = useCallback((sizeId: string) => {
+    return cartItems.reduce((total, item) => {
+      const matchingSize = item.sizes?.find((size: { id?: string; quantity?: number }) => size.id === sizeId);
+      return total + Number(matchingSize?.quantity || 0);
+    }, 0);
+  }, [cartItems]);
+
   const handleAddSize = useCallback(async (product: Product, size: ProductSize) => {
+    if (isAddingBySize[size.id]) {
+      return;
+    }
+
+    const availableStock = Math.max(0, Number(size.stock || 0));
+    if (availableStock <= 0) {
+      toast({
+        title: "Out of Stock",
+        description: "This size is currently out of stock",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const cartQuantity = getCartQuantityForSize(size.id);
+    if (cartQuantity >= availableStock) {
+      toast({
+        title: "Stock limit reached",
+        description: `Only ${availableStock} unit${availableStock === 1 ? "" : "s"} available for this size`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
+      setIsAddingBySize((prev) => ({ ...prev, [size.id]: true }));
+
       const cartItem = {
         productId: product.id,
         name: product.name,
@@ -414,21 +472,95 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
         notes: "",
         shipping_cost: 0,
       };
-      await addToCart(cartItem);
+      const success = await addToCart(cartItem);
+      if (!success) {
+        toast({ title: "Error", description: "Failed to add product", variant: "destructive" });
+        return;
+      }
+
       toast({ title: "Added", description: `${size.size_name || product.name} added to order` });
     } catch (error) {
       toast({ title: "Error", description: "Failed to add product", variant: "destructive" });
+    } finally {
+      setIsAddingBySize((prev) => ({ ...prev, [size.id]: false }));
     }
-  }, [addToCart, toast]);
+  }, [addToCart, getCartQuantityForSize, isAddingBySize, toast]);
 
   const handleQuantityChange = useCallback(async (productId: string, sizeId: string, newQty: number) => {
     if (newQty < 1) return;
+
+    const availableStock = getAvailableStock(sizeId);
+    if (availableStock <= 0) {
+      toast({
+        title: "Out of Stock",
+        description: "This size is currently out of stock",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newQty > availableStock) {
+      toast({
+        title: "Stock limit reached",
+        description: `Only ${availableStock} unit${availableStock === 1 ? "" : "s"} available for this size`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       await updateQuantity(productId, newQty, sizeId);
     } catch (error) {
       toast({ title: "Error", description: "Failed to update quantity", variant: "destructive" });
     }
-  }, [updateQuantity, toast]);
+  }, [getAvailableStock, updateQuantity, toast]);
+
+  const commitQuantityInput = useCallback(async (productId: string, sizeId: string, rawValue: string) => {
+    const normalized = rawValue.trim();
+
+    if (!normalized) {
+      const currentQty = cartItems
+        .flatMap((item) => item.sizes || [])
+        .find((size: any) => size.id === sizeId)?.quantity ?? 1;
+
+      setQuantityInputs((prev) => ({
+        ...prev,
+        [sizeId]: String(currentQty),
+      }));
+      return;
+    }
+
+    const parsedQty = Number(normalized);
+    if (Number.isNaN(parsedQty)) {
+      toast({
+        title: "Invalid quantity",
+        description: "Enter a valid number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    await handleQuantityChange(productId, sizeId, Math.max(1, Math.floor(parsedQty)));
+  }, [cartItems, handleQuantityChange, toast]);
+
+  const hasInvalidQuantityInput = useMemo(() => {
+    return cartItems.some((item) =>
+      (item.sizes || []).some((size: any) => {
+        const rawValue = quantityInputs[size.id];
+        if (rawValue == null || rawValue === "") {
+          return false;
+        }
+
+        const parsedQty = Number(rawValue);
+        if (Number.isNaN(parsedQty) || parsedQty < 1) {
+          return true;
+        }
+
+        const availableStock = getAvailableStock(size.id);
+        return parsedQty > availableStock;
+      })
+    );
+  }, [cartItems, quantityInputs, getAvailableStock]);
 
   const handleRemoveItem = useCallback(async (productId: string) => {
     try {
@@ -444,8 +576,57 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
       return;
     }
 
+    const normalizedCartItems = cartItems.map((item) => ({
+      ...item,
+      sizes: (item.sizes || []).map((size: any) => ({
+        ...size,
+        quantity: Math.max(1, Math.floor(Number(quantityInputs[size.id] ?? size.quantity ?? 1))),
+      })),
+    }));
+
+    for (const item of cartItems) {
+      for (const size of item.sizes || []) {
+        const rawValue = quantityInputs[size.id] ?? String(size.quantity ?? 1);
+        const parsedQty = Number(rawValue);
+        const availableStock = getAvailableStock(size.id);
+
+        if (!rawValue.trim() || Number.isNaN(parsedQty) || parsedQty < 1) {
+          toast({
+            title: "Invalid quantity",
+            description: `Enter a valid quantity for ${size.size_name || item.name}`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (parsedQty > availableStock) {
+          toast({
+            title: "Stock limit reached",
+            description: `Only ${availableStock} unit${availableStock === 1 ? "" : "s"} available for this size`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
     setIsSubmitting(true);
     try {
+      await assertCartStock(normalizedCartItems);
+
+      const subtotal = calculateSubtotal(normalizedCartItems);
+      const taxPer = selectedCustomer?.tax_percentage || 0;
+      const hasFreeShipping = selectedCustomer?.freeShipping || false;
+      const shipping = calculateShipping(
+        normalizedCartItems,
+        hasFreeShipping,
+        subtotal,
+        shippingSettings,
+        profileShippingSettings || undefined
+      );
+      const tax = calculateTax(subtotal, taxPer);
+      const total = calculateFinalTotal({ subtotal, shipping, tax, discount: 0 });
+
       const billingAddr = selectedCustomer.billing_address || {};
       const shippingAddr = sameAsShipping ? billingAddr : (selectedCustomer.shipping_address || billingAddr);
 
@@ -467,17 +648,17 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
           state: shippingAddr.state || "",
           zip_code: shippingAddr.zip_code || "",
         },
-        cartItems,
+        cartItems: normalizedCartItems,
         paymentMethod: "manual",
         paymentDetails: null,
         specialInstructions: "",
         poNumber: "",
         termsAccepted: true,
         accuracyConfirmed: true,
-        subtotal: orderTotals.subtotal,
-        tax: orderTotals.tax,
-        shipping: orderTotals.shipping,
-        total: orderTotals.total,
+        subtotal,
+        tax,
+        shipping,
+        total,
         skipPayment: true,
         status: "pending",
         createdAt: new Date().toISOString(),
@@ -493,10 +674,13 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
     }
   }, [
     cartItems,
+    getAvailableStock,
     onComplete,
-    orderTotals,
+    quantityInputs,
+    profileShippingSettings,
     sameAsShipping,
     selectedCustomer,
+    shippingSettings,
     toast,
   ]);
 
@@ -794,7 +978,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                         {expandedProduct === product.id && product.product_sizes && (
                           <div className="border-t bg-gray-50 p-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {product.product_sizes.map((size: ProductSize) => (
-                              <div key={size.id} className="bg-white rounded-lg p-2 border text-center">
+                              <div key={size.id} className={`bg-white rounded-lg p-2 border text-center ${Number(size.stock || 0) <= 0 || getCartQuantityForSize(size.id) >= Number(size.stock || 0) || isAddingBySize[size.id] ? "opacity-60" : ""}`}>
                                 <div className="space-y-0.5">
                                   <p className="text-sm font-semibold text-gray-900 leading-tight">
                                     {size.size_name || product.name}
@@ -809,12 +993,20 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                                 <p className="mt-2 text-base text-emerald-600 font-bold">
                                   ${size.price?.toFixed(2)}
                                 </p>
+                                <p className={`mt-1 text-[11px] font-medium ${Number(size.stock || 0) <= 0 ? "text-red-600" : "text-emerald-600"}`}>
+                                  {Number(size.stock || 0) <= 0
+                                    ? "Out of Stock"
+                                    : getCartQuantityForSize(size.id) >= Number(size.stock || 0)
+                                      ? `Stock limit reached (${Number(size.stock || 0)})`
+                                      : `In Stock (${Number(size.stock || 0)})`}
+                                </p>
                                 <Button 
                                   size="sm" 
-                                  className="mt-2 h-8 w-full bg-blue-600 hover:bg-blue-700 text-xs"
+                                  className="mt-2 h-8 w-full bg-blue-600 hover:bg-blue-700 text-xs disabled:bg-gray-200 disabled:text-gray-500"
                                   onClick={(e) => { e.stopPropagation(); handleAddSize(product, size); }}
+                                  disabled={Number(size.stock || 0) <= 0 || getCartQuantityForSize(size.id) >= Number(size.stock || 0) || isAddingBySize[size.id]}
                                 >
-                                  <Plus className="w-3 h-3 mr-1" /> Add
+                                  <Plus className="w-3 h-3 mr-1" /> {isAddingBySize[size.id] ? "Adding..." : Number(size.stock || 0) <= 0 || getCartQuantityForSize(size.id) >= Number(size.stock || 0) ? "Unavailable" : "Add"}
                                 </Button>
                               </div>
                             ))}
@@ -885,6 +1077,9 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                                 {size.size_value} {item.unitToggle ? size.size_unit : ""}
                                 {size.sku ? ` • SKU: ${size.sku}` : ""}
                               </p>
+                              <p className={`text-[11px] ${getAvailableStock(size.id) <= 0 ? "text-red-600" : "text-gray-500"}`}>
+                                {getAvailableStock(size.id) <= 0 ? "Out of Stock" : `${getAvailableStock(size.id)} available`}
+                              </p>
                             </div>
                             <div className="flex items-center gap-1">
                               <Button 
@@ -896,12 +1091,36 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                               >
                                 <Minus className="w-3 h-3" />
                               </Button>
-                              <span className="w-6 text-center text-sm font-medium">{size.quantity}</span>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={getAvailableStock(size.id)}
+                                inputMode="numeric"
+                                value={quantityInputs[size.id] ?? String(size.quantity)}
+                                onChange={(e) => {
+                                  const nextValue = e.target.value.replace(/[^\d]/g, "");
+                                  setQuantityInputs((prev) => ({
+                                    ...prev,
+                                    [size.id]: nextValue,
+                                  }));
+                                }}
+                                onBlur={() => {
+                                  void commitQuantityInput(item.productId, size.id, quantityInputs[size.id] ?? String(size.quantity));
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    void commitQuantityInput(item.productId, size.id, quantityInputs[size.id] ?? String(size.quantity));
+                                  }
+                                }}
+                                className="h-6 w-12 px-1 text-center text-sm font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              />
                               <Button 
                                 variant="outline" 
                                 size="sm" 
                                 className="h-6 w-6 p-0"
                                 onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)}
+                                disabled={size.quantity >= getAvailableStock(size.id)}
                               >
                                 <Plus className="w-3 h-3" />
                               </Button>
@@ -942,7 +1161,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
               <Button 
                 className="w-full h-11 mt-3 bg-green-600 hover:bg-green-700 text-base"
                 onClick={handleCreateOrder}
-                disabled={isSubmitting || cartItems.length === 0}
+                disabled={isSubmitting || cartItems.length === 0 || hasInvalidQuantityInput}
               >
                 {isSubmitting ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -968,7 +1187,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
           <Button 
             className="h-11 px-4 bg-green-600 hover:bg-green-700"
             onClick={handleCreateOrder}
-            disabled={isSubmitting || cartItems.length === 0}
+            disabled={isSubmitting || cartItems.length === 0 || hasInvalidQuantityInput}
           >
             {isSubmitting ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

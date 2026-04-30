@@ -99,6 +99,8 @@ const OrderCreationWizardComponent = ({
     initialData?.customer || null
   );
   const [hasCreditAccount, setHasCreditAccount] = useState(false);
+  const [creditLimit, setCreditLimit] = useState(0);
+  const [availableCredit, setAvailableCredit] = useState(0);
   const [billingAddress, setBillingAddress] = useState<BillingAddress | undefined>(
     initialData?.billingAddress
   );
@@ -261,13 +263,15 @@ const OrderCreationWizardComponent = ({
             });
             setCustomerHasFreeShipping(groupCustomer.freeShipping || false);
             setHasCreditAccount(hasActiveCreditAccount(profile.credit_limit, profile.credit_status));
+            setCreditLimit(Number(profile.credit_limit || 0));
+            setAvailableCredit(Math.max(0, Number(profile.credit_limit || 0) - Number(profile.credit_used || 0)));
             
             // Fetch profile shipping settings for group customer
             if (profile.id) {
               try {
                 const { data: profileData, error: profileError } = await supabase
                   .from("profiles")
-                  .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount, credit_limit, credit_status")
+                  .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount, credit_limit, credit_used, credit_status")
                   .eq("id", profile.id)
                   .maybeSingle();
 
@@ -282,15 +286,23 @@ const OrderCreationWizardComponent = ({
                     auto_shipping_amount: profileData.auto_shipping_amount,
                   });
                   setHasCreditAccount(hasActiveCreditAccount(profileData.credit_limit || profile.credit_limit, profileData.credit_status || profile.credit_status));
+                  const nextCreditLimit = Number(profileData.credit_limit || profile.credit_limit || 0);
+                  const nextCreditUsed = Number((profileData as any).credit_used || profile.credit_used || 0);
+                  setCreditLimit(nextCreditLimit);
+                  setAvailableCredit(Math.max(0, nextCreditLimit - nextCreditUsed));
                 } else {
                   console.log("❌ No profile shipping settings found for group customer:", profile.id);
                   setProfileShippingSettings(null);
                   setHasCreditAccount(hasActiveCreditAccount(profile.credit_limit, profile.credit_status));
+                  setCreditLimit(Number(profile.credit_limit || 0));
+                  setAvailableCredit(Math.max(0, Number(profile.credit_limit || 0) - Number(profile.credit_used || 0)));
                 }
               } catch (err) {
                 console.error("Error fetching profile shipping settings for group customer:", err);
                 setProfileShippingSettings(null);
                 setHasCreditAccount(hasActiveCreditAccount(profile.credit_limit, profile.credit_status));
+                setCreditLimit(Number(profile.credit_limit || 0));
+                setAvailableCredit(Math.max(0, Number(profile.credit_limit || 0) - Number(profile.credit_used || 0)));
               }
             }
             
@@ -329,13 +341,21 @@ const OrderCreationWizardComponent = ({
             (initialData.customer as any)?.credit_status
           )
         );
+        setCreditLimit(Number((initialData.customer as any)?.credit_limit || 0));
+        setAvailableCredit(
+          Math.max(
+            0,
+            Number((initialData.customer as any)?.credit_limit || 0) -
+              Number((initialData.customer as any)?.credit_used || 0)
+          )
+        );
         
         // Fetch profile shipping settings for pre-loaded customer
         if (initialData.customer.id) {
           try {
             const { data: profileData, error: profileError } = await supabase
               .from("profiles")
-              .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount, credit_limit, credit_status")
+              .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount, credit_limit, credit_used, credit_status")
               .eq("id", initialData.customer.id)
               .maybeSingle();
 
@@ -355,6 +375,10 @@ const OrderCreationWizardComponent = ({
                   profileData.credit_status || (initialData.customer as any)?.credit_status
                 )
               );
+              const nextCreditLimit = Number(profileData.credit_limit || (initialData.customer as any)?.credit_limit || 0);
+              const nextCreditUsed = Number(profileData.credit_used || (initialData.customer as any)?.credit_used || 0);
+              setCreditLimit(nextCreditLimit);
+              setAvailableCredit(Math.max(0, nextCreditLimit - nextCreditUsed));
             } else {
               console.log("❌ No profile shipping settings found for pre-loaded customer:", initialData.customer.id);
               setProfileShippingSettings(null);
@@ -362,6 +386,14 @@ const OrderCreationWizardComponent = ({
                 hasActiveCreditAccount(
                   (initialData.customer as any)?.credit_limit,
                   (initialData.customer as any)?.credit_status
+                )
+              );
+              setCreditLimit(Number((initialData.customer as any)?.credit_limit || 0));
+              setAvailableCredit(
+                Math.max(
+                  0,
+                  Number((initialData.customer as any)?.credit_limit || 0) -
+                    Number((initialData.customer as any)?.credit_used || 0)
                 )
               );
             }
@@ -372,6 +404,14 @@ const OrderCreationWizardComponent = ({
               hasActiveCreditAccount(
                 (initialData.customer as any)?.credit_limit,
                 (initialData.customer as any)?.credit_status
+              )
+            );
+            setCreditLimit(Number((initialData.customer as any)?.credit_limit || 0));
+            setAvailableCredit(
+              Math.max(
+                0,
+                Number((initialData.customer as any)?.credit_limit || 0) -
+                  Number((initialData.customer as any)?.credit_used || 0)
               )
             );
           }
@@ -738,6 +778,13 @@ const OrderCreationWizardComponent = ({
     setHasCreditAccount(
       hasActiveCreditAccount((customer as any)?.credit_limit, (customer as any)?.credit_status)
     );
+    setCreditLimit(Number((customer as any)?.credit_limit || 0));
+    setAvailableCredit(
+      Math.max(
+        0,
+        Number((customer as any)?.credit_limit || 0) - Number((customer as any)?.credit_used || 0)
+      )
+    );
     
     // Fetch locations for this customer from locations table
     try {
@@ -775,7 +822,7 @@ const OrderCreationWizardComponent = ({
     try {
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount, credit_limit, credit_status")
+        .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount, credit_limit, credit_used, credit_status")
         .eq("id", customer.id)
         .maybeSingle();
 
@@ -795,11 +842,22 @@ const OrderCreationWizardComponent = ({
             profileData.credit_status || (customer as any)?.credit_status
           )
         );
+        const nextCreditLimit = Number(profileData.credit_limit || (customer as any)?.credit_limit || 0);
+        const nextCreditUsed = Number(profileData.credit_used || (customer as any)?.credit_used || 0);
+        setCreditLimit(nextCreditLimit);
+        setAvailableCredit(Math.max(0, nextCreditLimit - nextCreditUsed));
       } else {
         console.log("❌ No profile shipping settings found for customer:", customer.id);
         setProfileShippingSettings(null);
         setHasCreditAccount(
           hasActiveCreditAccount((customer as any)?.credit_limit, (customer as any)?.credit_status)
+        );
+        setCreditLimit(Number((customer as any)?.credit_limit || 0));
+        setAvailableCredit(
+          Math.max(
+            0,
+            Number((customer as any)?.credit_limit || 0) - Number((customer as any)?.credit_used || 0)
+          )
         );
       }
     } catch (err) {
@@ -807,6 +865,13 @@ const OrderCreationWizardComponent = ({
       setProfileShippingSettings(null);
       setHasCreditAccount(
         hasActiveCreditAccount((customer as any)?.credit_limit, (customer as any)?.credit_status)
+      );
+      setCreditLimit(Number((customer as any)?.credit_limit || 0));
+      setAvailableCredit(
+        Math.max(
+          0,
+          Number((customer as any)?.credit_limit || 0) - Number((customer as any)?.credit_used || 0)
+        )
       );
     }
     
@@ -1326,6 +1391,8 @@ const OrderCreationWizardComponent = ({
                 isAdmin={false}
                 compact={true}
                 showCreditAccount={hasCreditAccount}
+                creditLimit={creditLimit}
+                availableCredit={availableCredit}
               />
               </section>
             </div>
@@ -1423,6 +1490,8 @@ const OrderCreationWizardComponent = ({
               isEditMode={isEditMode}
               isAdmin={true}
               showCreditAccount={hasCreditAccount}
+              creditLimit={creditLimit}
+              availableCredit={availableCredit}
             />
           </div>
         );
@@ -1464,7 +1533,7 @@ const OrderCreationWizardComponent = ({
         <div
           className={
             isPharmacyMode || userType === "group"
-              ? "grid grid-cols-1 gap-4 sm:gap-6 2xl:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)] 2xl:items-start"
+              ? "grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)] xl:items-start"
               : "grid grid-cols-1 2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 sm:gap-6"
           }
         >
@@ -1501,7 +1570,11 @@ const OrderCreationWizardComponent = ({
 
             <section 
               ref={wizardSectionRef}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 md:p-6 min-h-[400px] sm:min-h-[500px]"
+              className={
+                isPharmacyMode || userType === "group"
+                  ? "bg-white rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 md:p-6"
+                  : "bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 md:p-6 min-h-[400px] sm:min-h-[500px]"
+              }
               aria-label={`Step ${wizardState.currentStep} of ${totalSteps}: ${steps[wizardState.currentStep - 1]?.label}`}
               role="region"
             >
@@ -1530,7 +1603,7 @@ const OrderCreationWizardComponent = ({
           <aside 
             className={
               isPharmacyMode || userType === "group"
-                ? "min-w-0 order-first 2xl:order-last"
+                ? "min-w-0"
                 : "min-w-0 order-first 2xl:order-last space-y-4"
             }
             aria-label="Order summary"
@@ -1539,7 +1612,7 @@ const OrderCreationWizardComponent = ({
             <div
               className={
                 isPharmacyMode || userType === "group"
-                  ? "space-y-4 2xl:sticky 2xl:top-6"
+                  ? "space-y-4 xl:sticky xl:top-6"
                   : "space-y-4"
               }
             >
