@@ -41,13 +41,27 @@ export const StickyCartSummary = () => {
   }
 
   const handleQuantityChange = async (productId: string, newQuantity: number, sizeId: string) => {
-    const success = await updateQuantity(productId, newQuantity, sizeId)
-    if (!success) {
+    // Find the item and size to check stock
+    const item = cartItems.find(i => i.productId === productId);
+    const size = item?.sizes?.find(s => s.id === sizeId);
+    
+    if (size && size.stock !== undefined && newQuantity > size.stock) {
+      toast({
+        title: "Insufficient Stock",
+        description: `Only ${size.stock} units available in stock`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      await updateQuantity(productId, newQuantity, sizeId);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to update quantity",
+        description: error?.message || "Failed to update quantity",
         variant: "destructive",
-      })
+      });
     }
   }
 
@@ -97,9 +111,16 @@ export const StickyCartSummary = () => {
                               <span className="font-medium text-gray-700">
                                 {size.size_value} {item.unitToggle ? size.size_unit : ""}
                               </span>
-                              <span className="text-blue-600 font-semibold">
-                                ${(size.price || 0).toFixed(2)}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-blue-600 font-semibold">
+                                  ${(size.price || 0).toFixed(2)}
+                                </span>
+                                {size.stock !== undefined && (
+                                  <span className={`text-[10px] ${size.stock <= 5 ? 'text-red-500' : 'text-gray-500'}`}>
+                                    ({size.stock} in stock)
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             
                             {/* Quantity Controls */}
@@ -129,7 +150,8 @@ export const StickyCartSummary = () => {
                                       size.id
                                     )
                                   }
-                                  className="h-6 w-6 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center"
+                                  disabled={size.stock !== undefined && size.quantity >= size.stock}
+                                  className="h-6 w-6 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                                 >
                                   <Plus className="h-3 w-3" />
                                 </button>

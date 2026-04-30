@@ -86,11 +86,25 @@ const OrderSummaryCardComponent = ({
   
   // Handle quantity change
   const handleQuantityChange = async (productId: string, newQuantity: number, sizeId: string) => {
-    const success = await updateQuantity(productId, newQuantity, sizeId);
-    if (!success) {
+    // Find the item and size to check stock
+    const item = items.find(i => i.productId === productId);
+    const size = item?.sizes?.find(s => s.id === sizeId);
+    
+    if (size && size.stock !== undefined && newQuantity > size.stock) {
+      toast({
+        title: "Insufficient Stock",
+        description: `Only ${size.stock} units available in stock`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      await updateQuantity(productId, newQuantity, sizeId);
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to update quantity",
+        description: error?.message || "Failed to update quantity",
         variant: "destructive",
       });
     }
@@ -333,9 +347,16 @@ const OrderSummaryCardComponent = ({
                                     <p className="truncate text-[11px] font-medium text-slate-700">
                                       {size.size_value} {item.unitToggle ? ` ${size.size_unit || ""}` : ""}
                                     </p>
-                                    {size.sku && (
-                                      <p className="text-[10px] text-slate-500">SKU: {size.sku}</p>
-                                    )}
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      {size.sku && (
+                                        <p className="text-[10px] text-slate-500">SKU: {size.sku}</p>
+                                      )}
+                                      {size.stock !== undefined && (
+                                        <span className={`text-[10px] ${size.stock <= 5 ? 'text-red-500 font-semibold' : 'text-slate-500'}`}>
+                                          ({size.stock} in stock)
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     {/* Quantity Controls */}
@@ -369,6 +390,7 @@ const OrderSummaryCardComponent = ({
                                             size.id
                                           )
                                         }
+                                        disabled={size.stock !== undefined && size.quantity >= size.stock}
                                       >
                                         <Plus className="h-3 w-3" />
                                       </Button>

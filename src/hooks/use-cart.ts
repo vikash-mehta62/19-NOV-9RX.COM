@@ -68,9 +68,10 @@ const lastActionAt = useSelector((state: RootState) => state.cart.lastActionAt);
     }
   };
 
-  const updateQuantity = async (productId: string, quantity: number,sizeId: string) => {
+  const updateQuantity = async (productId: string, quantity: number, sizeId: string) => {
     try {
       if (quantity < 1) return false;
+      
       const nextCartItems = getCurrentCartItems().map((item) => {
         if (item.productId !== productId) {
           return item;
@@ -83,12 +84,21 @@ const lastActionAt = useSelector((state: RootState) => state.cart.lastActionAt);
           ),
         };
       });
-      await assertCartStock(nextCartItems);
-      dispatch(updateQuantityAction(productId, quantity,sizeId));
+      
+      // Stock validation
+      try {
+        await assertCartStock(nextCartItems);
+      } catch (stockError: any) {
+        // Re-throw with more specific error message
+        throw new Error(stockError.message || 'Insufficient stock available');
+      }
+      
+      dispatch(updateQuantityAction(productId, quantity, sizeId));
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating quantity:', error);
-      return false;
+      // Throw error with message so components can show it
+      throw error;
     }
   };
 
