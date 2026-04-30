@@ -7,6 +7,7 @@ import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import { useCart } from "@/hooks/use-cart";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { detectCardType, logPaymentTransaction, processPayment } from "@/services/paymentService";
+import { deductOrderBatchesWithFallback } from "@/services/orderBatchDeductionService";
 import axios from "../../../axiosconfig";
 import { assertCartStock } from "@/services/stockValidationService";
 
@@ -26,6 +27,59 @@ export default function QuickOrder() {
       firstName: parts[0] || "Customer",
       lastName: parts.slice(1).join(" ") || parts[0] || "Customer",
     };
+  };
+
+  const updateStock = async (items: any[], orderId?: string) => {
+    let batchManagedSizeIds = new Set<string>();
+    if (orderId) {
+      try {
+        const result = await deductOrderBatchesWithFallback(orderId, items);
+        if (result.alreadyDeducted) {
+          console.log(`Batch stock already deducted for order ${orderId}, skipping duplicate deduction.`);
+          return;
+        }
+        batchManagedSizeIds = result.batchManagedSizeIds;
+      } catch (error) {
+        console.warn(`Batch deduction failed for order ${orderId}, using fallback stock deduction.`, error);
+      }
+    }
+
+    const productUpdates = items.map((item) =>
+      supabase.rpc("decrement_stock", {
+        product_id: item.product_id || item.productId,
+        quantity: item.quantity,
+      })
+    );
+
+    const sizeUpdates = items.flatMap(
+      (item) =>
+        item.sizes?.map((size: any) =>
+          supabase
+            .from("product_sizes")
+            .select("stock")
+            .eq("id", size.id)
+            .single()
+            .then(({ data, error }) => {
+              if (error || !data) {
+                throw new Error(`Size not found for ID: ${size.id}`);
+              }
+              if (size.id && batchManagedSizeIds.has(size.id)) {
+                return null;
+              }
+              return supabase
+                .from("product_sizes")
+                .update({ stock: data.stock - size.quantity })
+                .eq("id", size.id);
+            })
+        ) || []
+    );
+
+    const updatePromises = [...productUpdates, ...sizeUpdates.filter(Boolean)];
+    const results = await Promise.allSettled(updatePromises);
+    const errors = results.filter((r) => r.status === "rejected");
+    if (errors.length > 0) {
+      throw new Error("Stock update failed for some items");
+    }
   };
 
   const handleOrderComplete = async (orderData: any) => {
@@ -120,7 +174,9 @@ export default function QuickOrder() {
         throw new Error(orderError.message);
       }
 
-      createdOrderNumber = orderId;
+      const orderNumber = insertedOrder?.order_number || orderId;
+      createdOrderNumber = orderNumber;
+      await updateStock(items, insertedOrder.id);
 
       let paymentResult: Awaited<ReturnType<typeof processPayment>> | null = null;
       let paymentProcessed = false;
@@ -156,7 +212,7 @@ export default function QuickOrder() {
                 chargedAmount: totalAmount,
                 appliedAmount: totalAmount,
                 processingFeeAmount: 0,
-                invoiceNumber: orderId,
+                invoiceNumber: orderNumber,
                 orderId: insertedOrder.id,
                 customerEmail: orderData.customer?.email,
                 billing,
@@ -174,7 +230,7 @@ export default function QuickOrder() {
                 chargedAmount: totalAmount,
                 appliedAmount: totalAmount,
                 processingFeeAmount: 0,
-                invoiceNumber: orderId,
+                invoiceNumber: orderNumber,
                 orderId: insertedOrder.id,
                 customerEmail: orderData.customer?.email,
                 billing,
@@ -226,7 +282,7 @@ export default function QuickOrder() {
         const { data: { session } } = await supabase.auth.getSession();
         await OrderActivityService.logOrderCreation({
           orderId: insertedOrder.id,
-          orderNumber: orderId,
+          orderNumber: orderNumber,
           totalAmount: totalAmount,
           status: "new",
           paymentMethod: "manual",
@@ -238,7 +294,7 @@ export default function QuickOrder() {
         if (paymentProcessed && paymentResult?.transactionId) {
           await OrderActivityService.logPaymentReceived({
             orderId: insertedOrder.id,
-            orderNumber: orderId,
+            orderNumber: orderNumber,
             amount: totalAmount,
             chargedAmount: totalAmount,
             processingFeeAmount: 0,
@@ -264,7 +320,7 @@ export default function QuickOrder() {
         if (customerProfileData?.email_notifaction || customerProfileData?.order_updates) {
           const emailPayload = {
             id: insertedOrder.id,
-            order_number: orderId,
+            order_number: orderNumber,
             customerInfo: {
               name: orderData.customer?.name || "",
               email: orderData.customer?.email || "",
@@ -296,8 +352,8 @@ export default function QuickOrder() {
       toast({
         title: paymentProcessed ? "Order Created And Paid" : "Order Created Successfully!",
         description: paymentProcessed
-          ? `Order ${orderId} was created and payment was captured`
-          : `Order ${orderId} has been created`,
+          ? `Order ${orderNumber} was created and payment was captured`
+          : `Order ${orderNumber} has been created`,
       });
 
       // Navigate to orders list
