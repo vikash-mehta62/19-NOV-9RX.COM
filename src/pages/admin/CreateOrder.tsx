@@ -100,6 +100,83 @@ const getPreselectedCustomerData = () => {
   return null;
 };
 
+const PENDING_CREDIT_STATUSES = ["pending_terms", "documentation_pending", "pending_acceptance"];
+
+const getAdminCreditCheckoutAvailability = async (customerId: string, customerProfile: any) => {
+  const creditUsed = Number(customerProfile?.credit_used || 0);
+  const profileLimit = Number(customerProfile?.credit_limit || 0);
+  const creditStatus = String(customerProfile?.credit_status || "").toLowerCase();
+  const activeCredit =
+    profileLimit > 0 &&
+    !["suspended", "blocked", "inactive", "disabled", ...PENDING_CREDIT_STATUSES].includes(creditStatus);
+
+  if (activeCredit) {
+    return {
+      enabled: true,
+      creditLimit: profileLimit,
+      availableCredit: Math.max(0, profileLimit - creditUsed),
+      pendingTerms: false,
+    };
+  }
+
+  if (!PENDING_CREDIT_STATUSES.includes(creditStatus)) {
+    return {
+      enabled: false,
+      creditLimit: profileLimit,
+      availableCredit: Math.max(0, profileLimit - creditUsed),
+      pendingTerms: false,
+    };
+  }
+
+  const { data: pendingTerms, error: termsError } = await supabase
+    .from("sent_credit_terms")
+    .select("credit_limit")
+    .eq("user_id", customerId)
+    .in("status", ["pending", "viewed"])
+    .order("sent_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (termsError) {
+    throw new Error(termsError.message);
+  }
+
+  const pendingLimit = Number(pendingTerms?.credit_limit || 0);
+
+  if (pendingLimit <= 0) {
+    return {
+      enabled: false,
+      creditLimit: profileLimit,
+      availableCredit: Math.max(0, profileLimit - creditUsed),
+      pendingTerms: true,
+    };
+  }
+
+  const { data: pendingOrders, error: pendingOrdersError } = await supabase
+    .from("orders")
+    .select("total_amount")
+    .eq("profile_id", customerId)
+    .eq("payment_method", "credit")
+    .eq("payment_status", "pending")
+    .eq("status", "credit_approval_processing");
+
+  if (pendingOrdersError) {
+    throw new Error(pendingOrdersError.message);
+  }
+
+  const reservedCredit = (pendingOrders || []).reduce(
+    (sum, order: any) => sum + Number(order.total_amount || 0),
+    0
+  );
+
+  return {
+    enabled: true,
+    creditLimit: pendingLimit,
+    availableCredit: Math.max(0, pendingLimit - creditUsed - reservedCredit),
+    pendingTerms: true,
+  };
+};
+
 export default function CreateOrder() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -265,7 +342,7 @@ const profileID =
           const creditStatus = String(customerProfile?.credit_status || "").toLowerCase();
           const hasCredit =
             (customerProfile?.credit_limit || 0) > 0 &&
-            !["suspended", "blocked", "inactive", "disabled"].includes(creditStatus);
+            !["suspended", "blocked", "inactive", "disabled", "pending_terms", "documentation_pending", "pending_acceptance"].includes(creditStatus);
           const availableCredit = Math.max(0, (customerProfile?.credit_limit || 0) - (customerProfile?.credit_used || 0));
           const creditMemoBalance = customerProfile?.credit_memo_balance || 0;
           const customerName = customerProfile?.company_name || 
@@ -519,26 +596,22 @@ const profileID =
           throw new Error(profileError.message);
         }
 
-        const creditUsed = customerProfile.credit_used || 0;
-        const creditLimit = customerProfile.credit_limit || 0;
-        const creditStatus = String(customerProfile.credit_status || "").toLowerCase();
-        const creditEnabled = !["suspended", "blocked", "inactive", "disabled"].includes(creditStatus);
-        const availableCredit = creditLimit - creditUsed;
+        const creditAvailability = await getAdminCreditCheckoutAvailability(orderData.customerId, customerProfile);
 
-        if (!creditEnabled || creditLimit <= 0) {
+        if (!creditAvailability.enabled || creditAvailability.creditLimit <= 0) {
           toast({
             title: "Credit Account Unavailable",
-            description: "This customer's credit account is currently inactive.",
+            description: "This customer does not have an active or pending credit offer available for admin checkout.",
             variant: "destructive",
           });
           return;
         }
 
         // Check if order total exceeds available credit
-        if (orderData.total > availableCredit) {
+        if (orderData.total > creditAvailability.availableCredit) {
           toast({
             title: "Credit Limit Exceeded",
-            description: `Available credit: $${availableCredit.toFixed(2)}. Order total: $${orderData.total.toFixed(2)}.`,
+            description: `Available credit: $${creditAvailability.availableCredit.toFixed(2)}. Order total: $${orderData.total.toFixed(2)}.`,
             variant: "destructive",
           });
           return;

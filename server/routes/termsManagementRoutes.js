@@ -82,6 +82,23 @@ router.post("/send-credit-terms", async (req, res) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + Number(expiresInDays));
 
+    const nowIso = new Date().toISOString();
+    const { error: expireExistingError } = await supabaseAdmin
+      .from("sent_credit_terms")
+      .update({
+        status: "expired",
+        updated_at: nowIso,
+      })
+      .eq("user_id", userId)
+      .in("status", ["pending", "viewed"]);
+
+    if (expireExistingError) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to close existing pending credit terms",
+      });
+    }
+
     const { data: insertedTerms, error: insertError } = await supabaseAdmin
       .from("sent_credit_terms")
       .insert({
@@ -99,6 +116,13 @@ router.post("/send-credit-terms", async (req, res) => {
       .single();
 
     if (insertError) {
+      if (insertError.code === "23505") {
+        return res.status(409).json({
+          success: false,
+          message: "A pending credit terms request already exists for this user. Refresh and try again.",
+        });
+      }
+
       return res.status(500).json({
         success: false,
         message: "Failed to create credit terms record",

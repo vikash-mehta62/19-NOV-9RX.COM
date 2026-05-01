@@ -299,7 +299,7 @@ export default function PaymentCallback() {
       }
 
       if (pendingPayment.flowType === "pharmacy_checkout") {
-        const createdLocalOrder = finalizePharmacyCheckout(pendingPayment, result);
+        const createdLocalOrder = await finalizePharmacyCheckout(pendingPayment, result);
         try {
           await sendPaymentConfirmationEmail(createdLocalOrder.order, result);
         } catch (emailError) {
@@ -701,13 +701,18 @@ export default function PaymentCallback() {
     };
   };
 
-  const finalizePharmacyCheckout = (
+  const finalizePharmacyCheckout = async (
     pendingPayment: any,
     result: IPosNormalizedPaymentResult,
   ) => {
     const orderDraft = pendingPayment.orderDraft || {};
     const existingOrders = JSON.parse(localStorage.getItem("orders") || "[]");
-    const orderNumber = `RX-${Date.now()}`;
+    const orderNumber = pendingPayment.orderNumber || await generateOrderId();
+
+    if (!orderNumber) {
+      throw new Error("Failed to generate order number");
+    }
+
     const finalizedOrder = {
       ...orderDraft,
       orderNumber,

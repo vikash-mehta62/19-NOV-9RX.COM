@@ -242,7 +242,7 @@ export default function PharmacyOrder() {
         const creditUsed = customerProfile.credit_used || 0;
         const creditLimit = customerProfile.credit_limit || 0;
         const creditStatus = String(customerProfile.credit_status || "").toLowerCase();
-        const creditEnabled = !["suspended", "blocked", "inactive", "disabled"].includes(creditStatus);
+        const creditEnabled = !["suspended", "blocked", "inactive", "disabled", "pending_terms", "documentation_pending", "pending_acceptance"].includes(creditStatus);
         const availableCredit = creditLimit - creditUsed;
 
         if (!creditEnabled || creditLimit <= 0) {

@@ -1,4 +1,4 @@
-  import { useState, useCallback } from "react";
+  import { useState, useCallback, useEffect } from "react";
 import { OrderFormValues, ShippingAddressData } from "../../schemas/orderSchema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +77,7 @@ export const ShippingTab = ({
 }: ShippingTabProps) => {
   const [copied, setCopied] = useState(false);
   const [copiedTrackingNumber, setCopiedTrackingNumber] = useState("");
+  const [trackingNumberValue, setTrackingNumberValue] = useState(order.shipping?.trackingNumber || "");
   const { toast } = useToast();
   const orderDate = order.date || (order as any).created_at;
   
@@ -85,7 +86,10 @@ export const ShippingTab = ({
   
   // Edit states
   const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [isEditingTracking, setIsEditingTracking] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingTracking, setIsSavingTracking] = useState(false);
+  const [trackingNumberDraft, setTrackingNumberDraft] = useState(order.shipping?.trackingNumber || "");
   
   // Address form state
   const [addressForm, setAddressForm] = useState({
@@ -116,6 +120,12 @@ export const ShippingTab = ({
     .filter(Boolean)
     .join(", ");
 
+  useEffect(() => {
+    const nextTrackingNumber = order.shipping?.trackingNumber || "";
+    setTrackingNumberValue(nextTrackingNumber);
+    setTrackingNumberDraft(nextTrackingNumber);
+  }, [order.shipping?.trackingNumber]);
+
   const handleCopyAddress = () => {
     if (fullAddress) {
       navigator.clipboard.writeText(fullAddress);
@@ -133,6 +143,60 @@ export const ShippingTab = ({
       toast({ title: "Copied!", description: "Tracking number copied to clipboard" });
       setTimeout(() => setCopiedTrackingNumber(""), 2000);
     }
+  };
+
+  const handleSaveTrackingNumber = useCallback(async () => {
+    if (!orderId) return;
+
+    const nextTrackingNumber = trackingNumberDraft.trim();
+    if (!nextTrackingNumber) {
+      toast({
+        title: "Tracking number required",
+        description: "Enter a tracking number before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingTracking(true);
+    try {
+      const updatedShipping = {
+        ...((order.shipping || {}) as Record<string, any>),
+        trackingNumber: nextTrackingNumber,
+      };
+
+      const { error } = await (supabase
+        .from("orders")
+        .update({
+          shipping: updatedShipping,
+          tracking_number: nextTrackingNumber,
+        }) as any)
+        .eq("id", orderId);
+
+      if (error) throw error;
+
+      setTrackingNumberValue(nextTrackingNumber);
+      setIsEditingTracking(false);
+      onOrderUpdate?.();
+      toast({
+        title: "Success",
+        description: "Tracking number updated successfully",
+      });
+    } catch (error) {
+      console.error("Error saving tracking number:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save tracking number",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingTracking(false);
+    }
+  }, [orderId, order.shipping, trackingNumberDraft, onOrderUpdate, toast]);
+
+  const handleCancelTrackingEdit = () => {
+    setTrackingNumberDraft(trackingNumberValue || order.shipping?.trackingNumber || "");
+    setIsEditingTracking(false);
   };
 
   // Handle save address
@@ -285,7 +349,7 @@ export const ShippingTab = ({
             </div>
           )}
 
-          {(packageTrackingItems.length > 0 || order.shipping?.trackingNumber) && (
+          {(packageTrackingItems.length > 0 || trackingNumberValue) && (
             <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-sky-50 p-4 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="flex items-start gap-3">
@@ -328,20 +392,65 @@ export const ShippingTab = ({
                           </div>
                         ))}
                       </div>
+                    ) : isEditingTracking ? (
+                      <div className="mt-2 flex flex-col gap-2 rounded-lg border border-blue-100 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center">
+                        <Input
+                          value={trackingNumberDraft}
+                          onChange={(event) => setTrackingNumberDraft(event.target.value)}
+                          className="h-9 font-mono text-sm font-semibold text-blue-950"
+                          aria-label="Tracking number"
+                        />
+                        <div className="flex shrink-0 gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleCancelTrackingEdit}
+                            disabled={isSavingTracking}
+                            className="h-9"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={handleSaveTrackingNumber}
+                            disabled={isSavingTracking}
+                            className="h-9 bg-blue-600 hover:bg-blue-700"
+                          >
+                            {isSavingTracking ? "Saving..." : "Save"}
+                          </Button>
+                        </div>
+                      </div>
                     ) : (
                       <div className="mt-2 flex items-center gap-2 rounded-lg border border-blue-100 bg-white px-4 py-3 shadow-sm">
                         <p className="min-w-0 flex-1 break-all font-mono text-sm font-semibold text-blue-950">
-                          {order.shipping?.trackingNumber}
+                          {trackingNumberValue}
                         </p>
+                        {canEdit && orderId && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setTrackingNumberDraft(trackingNumberValue);
+                              setIsEditingTracking(true);
+                            }}
+                            className="h-8 px-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                            aria-label="Edit tracking number"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleCopyTracking(order.shipping?.trackingNumber)}
+                          onClick={() => handleCopyTracking(trackingNumberValue)}
                           className="h-8 px-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
                           aria-label="Copy tracking number"
                         >
-                          {copiedTrackingNumber === order.shipping?.trackingNumber ? (
+                          {copiedTrackingNumber === trackingNumberValue ? (
                             <Check className="h-4 w-4" />
                           ) : (
                             <Copy className="h-4 w-4" />
@@ -355,7 +464,7 @@ export const ShippingTab = ({
               
               <div className="mt-4 border-t border-blue-200 pt-4">
                 <div className="flex flex-wrap gap-2">
-                  {(packageTrackingItems.length > 0 ? packageTrackingItems : [{ box: 1, trackingNumber: order.shipping?.trackingNumber, label: order.shipping }]).map((item) => (
+                  {(packageTrackingItems.length > 0 ? packageTrackingItems : [{ box: 1, trackingNumber: trackingNumberValue, label: order.shipping }]).map((item) => (
                     <a
                       key={`${item.box}-${item.trackingNumber}`}
                       href={getTrackingUrl(order.shipping?.method || "FedEx", String(item.trackingNumber || ""))}

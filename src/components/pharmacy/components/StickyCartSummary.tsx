@@ -2,6 +2,7 @@
 
 import { ShoppingCart, ChevronUp, X, ArrowRight, Trash2, Eye, Plus, Minus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { useCart } from "@/hooks/use-cart"
 import { useState, useMemo } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
@@ -10,6 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 export const StickyCartSummary = () => {
   const { cartItems, cartTotal, removeFromCart, updateQuantity } = useCart()
   const [isExpanded, setIsExpanded] = useState(false)
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({})
   const navigate = useNavigate()
   const location = useLocation()
   const { toast } = useToast()
@@ -41,6 +43,8 @@ export const StickyCartSummary = () => {
   }
 
   const handleQuantityChange = async (productId: string, newQuantity: number, sizeId: string) => {
+    if (newQuantity < 1) return
+
     // Find the item and size to check stock
     const item = cartItems.find(i => i.productId === productId);
     const size = item?.sizes?.find(s => s.id === sizeId);
@@ -56,6 +60,7 @@ export const StickyCartSummary = () => {
     
     try {
       await updateQuantity(productId, newQuantity, sizeId);
+      resetQuantityDraft(productId, sizeId)
     } catch (error: any) {
       toast({
         title: "Error",
@@ -63,6 +68,36 @@ export const StickyCartSummary = () => {
         variant: "destructive",
       });
     }
+  }
+
+  const getQuantityKey = (productId: string, sizeId: string) => `${productId}:${sizeId}`
+
+  const handleQuantityDraftChange = (productId: string, sizeId: string, value: string) => {
+    if (!/^\d*$/.test(value)) return
+    setQuantityDrafts((prev) => ({
+      ...prev,
+      [getQuantityKey(productId, sizeId)]: value,
+    }))
+  }
+
+  const resetQuantityDraft = (productId: string, sizeId: string) => {
+    const key = getQuantityKey(productId, sizeId)
+    setQuantityDrafts((prev) => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
+  const commitQuantityDraft = async (productId: string, sizeId: string, fallbackQuantity: number) => {
+    const rawValue = quantityDrafts[getQuantityKey(productId, sizeId)]
+    const parsed = Number.parseInt(rawValue ?? "", 10)
+    const nextQuantity = Number.isFinite(parsed) && parsed > 0
+      ? parsed
+      : Math.max(1, fallbackQuantity)
+
+    await handleQuantityChange(productId, nextQuantity, sizeId)
   }
 
   const handleViewDetails = (productId: string) => {
@@ -76,22 +111,26 @@ export const StickyCartSummary = () => {
     <div className="fixed bottom-4 right-4 z-40 hidden lg:block">
       {/* Expanded View */}
       {isExpanded && (
-        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 mb-2 w-80 overflow-hidden animate-in slide-in-from-bottom-2">
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-3 flex items-center justify-between">
+        <div className="mb-2 w-[360px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl animate-in slide-in-from-bottom-2">
+          <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingCart className="w-4 h-4" />
               <span className="font-semibold text-sm">Your Cart ({totalItems})</span>
             </div>
-            <button onClick={() => setIsExpanded(false)} className="hover:bg-white/20 rounded p-1">
+            <button
+              onClick={() => setIsExpanded(false)}
+              className="rounded-md p-1 text-white/85 transition hover:bg-white/15 hover:text-white"
+              aria-label="Close cart"
+            >
               <X className="w-4 h-4" />
             </button>
           </div>
           
-          <div className="p-3 max-h-96 overflow-y-auto">
+          <div className="max-h-[420px] overflow-y-auto px-4 py-2">
             {cartItems.map((item, index) => (
-              <div key={item.productId || index} className="py-3 border-b border-gray-100 last:border-0">
-                <div className="flex items-start gap-2">
-                  <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+              <div key={item.productId || index} className="border-b border-slate-100 py-4 last:border-0">
+                <div className="flex items-start gap-3">
+                  <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
                     <img
                       src={item.image || "/placeholder.svg"}
                       alt={item.name}
@@ -99,33 +138,40 @@ export const StickyCartSummary = () => {
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                    <p className="truncate text-sm font-semibold text-slate-950">{item.name}</p>
                     
                     {/* Sizes with quantity controls */}
-                    <div className="mt-2 space-y-2">
+                    <div className="mt-3 space-y-2">
                       {(item.sizes || [])
                         .filter((s) => s.quantity > 0)
                         .map((size) => (
-                          <div key={size.id} className="bg-gray-50 rounded p-2 space-y-1">
-                            <div className="flex justify-between items-center text-xs">
-                              <span className="font-medium text-gray-700">
-                                {size.size_value} {item.unitToggle ? size.size_unit : ""}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-blue-600 font-semibold">
+                          <div key={size.id} className="rounded-lg bg-slate-50 px-3 py-2.5">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                {size.size_name && (
+                                  <p className="truncate text-xs font-semibold text-slate-950">
+                                    {size.size_name}
+                                  </p>
+                                )}
+                                <p className="truncate text-xs font-medium uppercase tracking-wide text-slate-600">
+                                  {size.size_value} {item.unitToggle ? size.size_unit : ""}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <span className="block text-xs font-semibold text-blue-600">
                                   ${(size.price || 0).toFixed(2)}
                                 </span>
                                 {size.stock !== undefined && (
-                                  <span className={`text-[10px] ${size.stock <= 5 ? 'text-red-500' : 'text-gray-500'}`}>
-                                    ({size.stock} in stock)
+                                  <span className={`block text-[10px] leading-4 ${size.stock <= 5 ? 'text-red-500' : 'text-slate-400'}`}>
+                                    {size.stock} in stock
                                   </span>
                                 )}
                               </div>
                             </div>
                             
                             {/* Quantity Controls */}
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1">
+                            <div className="mt-2 flex items-center justify-between gap-3">
+                              <div className="inline-flex h-8 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
                                 <button
                                   onClick={() =>
                                     handleQuantityChange(
@@ -135,13 +181,34 @@ export const StickyCartSummary = () => {
                                     )
                                   }
                                   disabled={size.quantity <= 1}
-                                  className="h-6 w-6 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                  className="flex h-8 w-8 items-center justify-center text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:text-slate-300"
+                                  aria-label={`Decrease quantity for ${item.name} ${size.size_value}`}
                                 >
                                   <Minus className="h-3 w-3" />
                                 </button>
-                                <span className="w-8 text-center text-sm font-medium">
-                                  {size.quantity}
-                                </span>
+                                <Input
+                                  type="text"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  aria-label={`Quantity for ${item.name} ${size.size_value}`}
+                                  value={quantityDrafts[getQuantityKey(item.productId, size.id)] ?? String(size.quantity || 1)}
+                                  onChange={(event) =>
+                                    handleQuantityDraftChange(item.productId, size.id, event.target.value)
+                                  }
+                                  onBlur={() =>
+                                    commitQuantityDraft(item.productId, size.id, size.quantity || 1)
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      event.currentTarget.blur()
+                                    }
+                                    if (event.key === "Escape") {
+                                      resetQuantityDraft(item.productId, size.id)
+                                      event.currentTarget.blur()
+                                    }
+                                  }}
+                                  className="h-8 min-h-0 w-12 rounded-none border-y-0 border-x border-slate-200 px-1 text-center text-sm font-semibold shadow-none focus-visible:z-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                />
                                 <button
                                   onClick={() =>
                                     handleQuantityChange(
@@ -151,12 +218,13 @@ export const StickyCartSummary = () => {
                                     )
                                   }
                                   disabled={size.stock !== undefined && size.quantity >= size.stock}
-                                  className="h-6 w-6 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                  className="flex h-8 w-8 items-center justify-center text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:text-slate-300"
+                                  aria-label={`Increase quantity for ${item.name} ${size.size_value}`}
                                 >
                                   <Plus className="h-3 w-3" />
                                 </button>
                               </div>
-                              <span className="text-xs font-semibold text-gray-900">
+                              <span className="shrink-0 text-sm font-semibold text-slate-950">
                                 ${((size.quantity || 0) * (size.price || 0)).toFixed(2)}
                               </span>
                             </div>
@@ -164,18 +232,18 @@ export const StickyCartSummary = () => {
                         ))}
                     </div>
                     
-                    <div className="flex items-center gap-2 mt-2">
+                    <div className="mt-3 flex items-center gap-2 text-xs">
                       <button
                         onClick={() => handleViewDetails(item.productId)}
-                        className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                        className="flex items-center gap-1 rounded px-1.5 py-1 font-medium text-blue-600 transition hover:bg-blue-50 hover:text-blue-700"
                       >
                         <Eye className="w-3 h-3" />
                         View
                       </button>
-                      <span className="text-gray-300">|</span>
+                      <span className="h-4 w-px bg-slate-200" />
                       <button
                         onClick={() => handleRemoveItem(item.productId)}
-                        className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
+                        className="flex items-center gap-1 rounded px-1.5 py-1 font-medium text-red-500 transition hover:bg-red-50 hover:text-red-600"
                       >
                         <Trash2 className="w-3 h-3" />
                         Remove
@@ -187,13 +255,13 @@ export const StickyCartSummary = () => {
             ))}
           </div>
 
-          <div className="p-3 bg-gray-50 border-t">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm text-gray-600">Subtotal:</span>
-              <span className="text-lg font-bold text-blue-600">${cartTotal?.toFixed(2)}</span>
+          <div className="border-t border-slate-200 bg-slate-50 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-600">Subtotal</span>
+              <span className="text-xl font-bold text-blue-600">${cartTotal?.toFixed(2)}</span>
             </div>
             <Button 
-              className="w-full bg-blue-600 hover:bg-blue-700 gap-2 min-h-[44px] rounded-xl"
+              className="w-full gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 min-h-[44px]"
               onClick={() => {
                 const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy';
                 // Different user types have different order creation paths

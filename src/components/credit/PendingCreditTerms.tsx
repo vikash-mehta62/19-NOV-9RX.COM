@@ -194,10 +194,36 @@ const PendingCreditTerms = () => {
         // Non-fatal: profile is already updated, credit line is secondary
       }
 
-      toast({
+      const { data: syncResult, error: syncError } = await supabase.rpc(
+        "sync_pending_credit_orders_after_terms_acceptance",
+        { p_user_id: userProfile?.id }
+      );
+
+      let acceptanceToast = {
         title: "Terms Accepted!",
         description: "You have successfully accepted the credit terms. Your credit line is now active.",
-      });
+        variant: undefined as "destructive" | undefined,
+      };
+
+      if (syncError) {
+        console.error("Pending admin credit order sync error:", syncError);
+        acceptanceToast = {
+          title: "Terms accepted, sync pending",
+          description: "Your credit line is active, but pending admin-created credit orders could not be synced automatically.",
+          variant: "destructive",
+        };
+      } else if (syncResult && syncResult.success === false) {
+        console.error("Pending admin credit order sync failed:", syncResult);
+        acceptanceToast = {
+          title: "Terms accepted, sync needs review",
+          description: syncResult.error || "Pending admin-created credit orders could not be synced automatically.",
+          variant: "destructive",
+        };
+      } else if (syncResult?.synced_count > 0) {
+        acceptanceToast.description = `Your credit line is active. ${syncResult.synced_count} pending admin credit order(s) were synced.`;
+      }
+
+      toast(acceptanceToast);
 
       setShowReviewDialog(false);
       setPendingTerms(null);

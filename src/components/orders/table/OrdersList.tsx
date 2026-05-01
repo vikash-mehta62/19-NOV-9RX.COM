@@ -638,6 +638,36 @@ export function OrdersList({
         },
       });
 
+      const isCreditApprovalOrder =
+        String(order?.payment_method || order?.paymentMethod || "").toLowerCase() === "credit" ||
+        String(order?.status || "").toLowerCase() === "credit_approval_processing";
+
+      if (isCreditApprovalOrder) {
+        const { data: syncResult, error: syncError } = await supabase.rpc(
+          "sync_pending_credit_order_after_terms_acceptance",
+          { p_order_id: orderId }
+        );
+
+        if (syncError) {
+          const detailedMessage = [syncError.message, syncError.details, syncError.hint]
+            .filter(Boolean)
+            .join(" | ");
+          const missingSyncFunction =
+            String(detailedMessage || "").includes("sync_pending_credit_order_after_terms_acceptance") ||
+            String(detailedMessage || "").toLowerCase().includes("could not find the function");
+
+          if (missingSyncFunction) {
+            console.warn("Single-order credit sync RPC is not available yet. Continuing with existing approval flow.");
+          } else {
+            throw new Error(detailedMessage || "Failed to sync pending credit order before approval");
+          }
+        }
+
+        if (syncResult?.success === false) {
+          throw new Error(syncResult?.error || "Failed to sync pending credit order before approval");
+        }
+      }
+
       const { data: rpcResult, error: rpcError } = await supabase.rpc(
         "approve_credit_order_atomic",
         { p_order_id: orderId }
@@ -653,20 +683,20 @@ export function OrdersList({
         throw new Error(rpcResult?.message || "Credit approval failed");
       }
 
-      const profileId = (order as any)?.customer || order?.profile_id;
+      const rewardsProfileId = (order as any)?.customer || order?.profile_id;
       const totalAmount = Number((order as any)?.total_amount ?? (order as any)?.total ?? 0);
 
-      if (rpcResult.status === "approved" && profileId && totalAmount > 0) {
+      if (rpcResult.status === "approved" && rewardsProfileId && totalAmount > 0) {
         try {
           const rewardResult = await awardOrderPoints(
-            profileId,
+            rewardsProfileId,
             orderId,
             totalAmount,
             order.order_number
           );
           if (rewardResult.success && rewardResult.pointsEarned > 0) {
             console.log(
-              `Reward points awarded: ${rewardResult.pointsEarned} points to customer ${profileId}`
+              `Reward points awarded: ${rewardResult.pointsEarned} points to customer ${rewardsProfileId}`
             );
           }
         } catch (rewardError) {
@@ -678,7 +708,7 @@ export function OrdersList({
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        const adminUserId = session?.user?.id || profileId || "system";
+        const adminUserId = session?.user?.id || rewardsProfileId || "system";
         await OrderActivityService.logActivity({
           orderId,
           activityType: "updated",

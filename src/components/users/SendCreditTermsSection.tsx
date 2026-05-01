@@ -93,6 +93,24 @@ export function SendCreditTermsSection({ userId, userName }: SendCreditTermsSect
   const [customMessage, setCustomMessage] = useState("");
   const [expiresInDays, setExpiresInDays] = useState("7");
 
+  const latestAcceptedAt = sentTermsList.reduce<number | null>((latest, terms) => {
+    if (terms.status !== "accepted") return latest;
+
+    const acceptedAt = new Date(
+      terms.responded_at || terms.user_signed_date || terms.sent_at
+    ).getTime();
+
+    if (Number.isNaN(acceptedAt)) return latest;
+    return latest === null ? acceptedAt : Math.max(latest, acceptedAt);
+  }, null);
+
+  const visibleSentTermsList = sentTermsList.filter((terms) => {
+    if (terms.status !== "expired" || latestAcceptedAt === null) return true;
+
+    const expiredOfferTime = new Date(terms.sent_at).getTime();
+    return Number.isNaN(expiredOfferTime) || expiredOfferTime > latestAcceptedAt;
+  });
+
   useEffect(() => {
     fetchData();
   }, [userId]);
@@ -378,7 +396,7 @@ export function SendCreditTermsSection({ userId, userName }: SendCreditTermsSect
           </div>
         )}
 
-        {sentTermsList.length === 0 ? (
+        {visibleSentTermsList.length === 0 ? (
           <div className="text-center py-8">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <FileText className="w-8 h-8 text-gray-400" />
@@ -402,7 +420,7 @@ export function SendCreditTermsSection({ userId, userName }: SendCreditTermsSect
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sentTermsList.map((terms) => (
+              {visibleSentTermsList.map((terms) => (
                 <TableRow key={terms.id}>
                   <TableCell className="text-sm">
                     {new Date(terms.sent_at).toLocaleDateString()}

@@ -108,6 +108,8 @@ const PDF_FOOTER_TEXT_HEIGHT = 12;
 
 const toDateInputValue = (value?: string | null) => {
   if (!value) return "";
+  const dateOnlyMatch = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) return dateOnlyMatch[0];
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return String(value).slice(0, 10);
@@ -117,7 +119,10 @@ const toDateInputValue = (value?: string | null) => {
 
 const formatDateOnly = (value?: string | null) => {
   if (!value) return "Not set";
-  const parsed = new Date(value);
+  const dateOnlyMatch = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const parsed = dateOnlyMatch
+    ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]))
+    : new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return String(value).slice(0, 10);
   }
@@ -127,6 +132,9 @@ const formatDateOnly = (value?: string | null) => {
     day: "numeric",
   });
 };
+
+const getPoExpectedDeliveryValue = (order: any) =>
+  order?.estimated_delivery || order?.shipping?.estimatedDelivery || "";
 
 const sanitizeJsonObject = <T extends Record<string, any>>(value: T): T => {
   return Object.fromEntries(
@@ -528,14 +536,11 @@ export const OrderDetailsSheet = ({
     if (!poIs) return;
 
     const shippingData = ((currentOrder as any)?.shipping || {}) as any;
-    const expectedDeliveryValue =
-      shippingData.estimatedDelivery ||
-      (currentOrder as any)?.estimated_delivery ||
-      "";
+    const expectedDeliveryValue = getPoExpectedDeliveryValue(currentOrder);
     const paymentData = ((currentOrder as any)?.payment || {}) as any;
 
     setPoFinance({
-      expectedDelivery: toDateInputValue(shippingData.estimatedDelivery),
+      expectedDelivery: toDateInputValue(expectedDeliveryValue),
       paymentMethod: "manual",
       paymentDate: "",
       paymentReference: "",
@@ -1018,11 +1023,12 @@ export const OrderDetailsSheet = ({
     const documentTitle = poIs ? "PURCHASE ORDER" : invoiceNumber && !isNewOrder ? "INVOICE" : "SALES ORDER";
     const documentNumber = poIs ? currentOrder.order_number : invoiceNumber && !isNewOrder ? invoiceNumber : currentOrder.order_number;
     const shippingData = ((currentOrder as any)?.shipping || {}) as any;
-    const expectedDeliveryValue =
-      shippingData.estimatedDelivery ||
-      (currentOrder as any)?.estimated_delivery ||
-      "";
-    const vendorReference = (currentOrder as any)?.purchase_number_external || "Internal PO";
+    const expectedDeliveryValue = getPoExpectedDeliveryValue(currentOrder);
+    const poShippingMethod =
+      (currentOrder as any)?.purchase_number_external ||
+      (currentOrder as any)?.shipping_method ||
+      shippingData?.method ||
+      "N/A";
     const pdfPoWorkflowState = getPoWorkflowState(currentOrder);
     const poStatusLabel = getPoWorkflowLabel(pdfPoWorkflowState).toUpperCase();
     const poStatusColor: [number, number, number] =
@@ -1166,7 +1172,7 @@ export const OrderDetailsSheet = ({
     if (poIs) {
       autoTable(doc as any, {
         body: [
-          ["Vendor Reference", vendorReference, "Expected Delivery", formatDateOnly(expectedDeliveryValue)],
+          ["Shipping Method", poShippingMethod, "Expected Delivery", formatDateOnly(expectedDeliveryValue)],
         ],
         startY: nextSectionY,
         theme: "grid",
@@ -3360,6 +3366,7 @@ export const OrderDetailsSheet = ({
           status: "approved",
           po_handling_charges: handlingCharges,
           po_fred_charges: freightCharges,
+          shipping: updatedShipping,
           shipping_method: updatedShipping.method || null,
           estimated_delivery: updatedShipping.estimatedDelivery || null,
           payment_method: "manual",
@@ -3532,6 +3539,7 @@ export const OrderDetailsSheet = ({
           payment_notes: updatedPayment.notes || null,
           po_handling_charges: Number.isFinite(handlingCharges) ? handlingCharges : 0,
           po_fred_charges: Number.isFinite(freightCharges) ? freightCharges : 0,
+          shipping: updatedShipping,
         })
         .eq("id", currentOrder.id);
 

@@ -366,6 +366,25 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         day: '2-digit',
         year: 'numeric',
       });
+      const formatDateOnly = (dateValue) => {
+        if (!dateValue) return "N/A";
+        const dateOnlyMatch = String(dateValue).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        const parsed = dateOnlyMatch
+          ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]))
+          : new Date(dateValue);
+        if (Number.isNaN(parsed.getTime())) return String(dateValue);
+        return parsed.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+      };
+      const expectedDelivery = order?.estimated_delivery || order?.shipping?.estimatedDelivery || "";
+      const poShippingMethod =
+        order?.purchase_number_external ||
+        order?.shipping_method ||
+        order?.shipping?.method ||
+        "N/A";
 
       const headerContentY = 10;
       const leftColumnWidth = 64;
@@ -564,8 +583,44 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       const shipToX = PAGE_MARGIN * 2 + boxWidth;
       drawInfoBox(isPurchaseOrder ? 'SHIP TO' : 'SHIP TO', shipToX, shipToMeasured, sharedInfoBoxHeight);
 
+      let tableStartY = sectionY + sharedInfoBoxHeight + 7;
+      if (isPurchaseOrder) {
+        const detailsRowY = tableStartY;
+        const detailsRowHeight = 11;
+        const detailsWidth = PAGE_WIDTH - PAGE_MARGIN * 2;
+        const colWidths = [
+          detailsWidth * 0.3,
+          detailsWidth * 0.2,
+          detailsWidth * 0.3,
+          detailsWidth * 0.2,
+        ];
+        const colXs = colWidths.reduce((positions, width, index) => {
+          positions.push(index === 0 ? PAGE_MARGIN : positions[index - 1] + colWidths[index - 1]);
+          return positions;
+        }, []);
+        const cells = [
+          { text: "Shipping Method", bold: true, fill: "#F8FAFC" },
+          { text: poShippingMethod, bold: false, fill: "#FFFFFF" },
+          { text: "Expected Delivery", bold: true, fill: "#F8FAFC" },
+          { text: formatDateOnly(expectedDelivery), bold: false, fill: "#FFFFFF" },
+        ];
+
+        cells.forEach((cell, index) => {
+          doc.rect(mm(colXs[index]), mm(detailsRowY), mm(colWidths[index]), mm(detailsRowHeight))
+            .fillAndStroke(cell.fill, GRID_LINE);
+          doc.font(cell.bold ? "Helvetica-Bold" : "Helvetica")
+            .fontSize(8)
+            .fillColor(TEXT_DARK)
+            .text(cell.text, mm(colXs[index] + 2.5), mm(detailsRowY + 3.6), {
+              width: mm(colWidths[index] - 5),
+              lineBreak: false,
+            });
+        });
+
+        tableStartY = detailsRowY + detailsRowHeight + 6;
+      }
+
       // Items table header
-      const tableStartY = sectionY + sharedInfoBoxHeight + 7;
       const tableHeaderHeight = 9;
       const colX = {
         num: PAGE_MARGIN + 2,

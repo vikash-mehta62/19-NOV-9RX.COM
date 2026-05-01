@@ -15,7 +15,10 @@ const purchaseOrderTemplate = (order = {}, options = {}) => {
   const formatCurrency = (amount) => `$${(Number(amount) || 0).toFixed(2)}`;
   const formatDate = (dateValue) => {
     if (!dateValue) return "Not set";
-    const parsed = new Date(dateValue);
+    const dateOnlyMatch = String(dateValue).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const parsed = dateOnlyMatch
+      ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]))
+      : new Date(dateValue);
     if (Number.isNaN(parsed.getTime())) return String(dateValue);
     return parsed.toLocaleDateString("en-US", {
       year: "numeric",

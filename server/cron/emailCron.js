@@ -15,6 +15,7 @@
 
 const { createClient } = require("@supabase/supabase-js");
 const mailSender = require("../utils/mailSender");
+const { inventoryStockAlertTemplate } = require("../templates/inventoryStockAlert");
 const crypto = require("crypto");
 require("dotenv").config();
 
@@ -54,6 +55,11 @@ const CONFIG = {
   
   // Retry
   retryInterval: 5 * 60 * 1000, // 5 minutes
+
+  // Inventory stock alerts
+  inventoryAlertBatchSize: 50,
+  inventoryAlertInterval: 60 * 1000, // 1 minute
+  inventoryAlertCooldownMinutes: parseInt(process.env.INVENTORY_ALERT_COOLDOWN_MINUTES || "30", 10),
   
   // Duplicate prevention
   duplicateCheckHours: 24, // Don't send same email type to same user within 24 hours
@@ -83,6 +89,206 @@ const log = (emoji, message, data = null) => {
     console.log(`${emoji} [${timestamp}] ${message}`);
   }
 };
+
+const parseEmailList = (value) => String(value || "")
+  .split(",")
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
+
+async function getInventoryAlertRecipients() {
+  // Only send to admin email of this Inventory stock updates.
+  return parseEmailList(process.env.ADMIN_EMAIL).slice(0, 1);
+}
+
+function getInventoryAlertSubject(events) {
+  const counts = (events || []).reduce((acc, event) => {
+    acc[event.status] = (acc[event.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  const total = events?.length || 0;
+  if (counts.out_of_stock) {
+    return `9RX Inventory Alert: ${counts.out_of_stock} out of stock, ${total} total affected`;
+  }
+  if (counts.critical) {
+    return `9RX Inventory Alert: ${counts.critical} critical, ${total} total affected`;
+  }
+  return `9RX Inventory Alert: ${total} product${total === 1 ? "" : "s"} very low`;
+}
+
+async function isInventoryAlertInCooldown() {
+  const cooldownMinutes = Number.isFinite(CONFIG.inventoryAlertCooldownMinutes)
+    ? CONFIG.inventoryAlertCooldownMinutes
+    : 30;
+
+  if (cooldownMinutes <= 0) {
+    return false;
+  }
+
+  const cutoffTime = new Date(Date.now() - cooldownMinutes * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("email_queue")
+    .select("id, status, created_at, sent_at")
+    .eq("email_type", "inventory_alert")
+    .in("status", ["pending", "processing", "sent"])
+    .gte("created_at", cutoffTime)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    log("⚠️", `Inventory alert cooldown check failed: ${error.message}`);
+    return true;
+  }
+
+  return Array.isArray(data) && data.length > 0;
+}
+
+function classifyInventoryStock(stockValue) {
+  const stock = Number(stockValue || 0);
+
+  if (stock <= 0) {
+    return { status: "out_of_stock", threshold: 0 };
+  }
+
+  if (stock < 20) {
+    return { status: "very_low", threshold: 20 };
+  }
+
+  if (stock <= 50) {
+    return { status: "critical", threshold: 50 };
+  }
+
+  return null;
+}
+
+const inventoryStatusRank = {
+  out_of_stock: 3,
+  very_low: 2,
+  critical: 1,
+};
+
+function buildInventorySizeLabel(size) {
+  const unitToggle = size.products?.unitToggle === true;
+  const parts = [
+    size.size_name,
+    size.size_value,
+    unitToggle ? size.size_unit : "",
+  ]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean);
+
+  return parts.join(" ") || "Default";
+}
+
+function mapProductSizeToInventoryItem(size) {
+  const alert = classifyInventoryStock(size.stock);
+  if (!alert) return null;
+
+  return {
+    product_id: size.product_id,
+    product_size_id: size.id,
+    product_name: size.products?.name || "Unknown product",
+    size_label: buildInventorySizeLabel(size),
+    size_name: size.size_name || "",
+    size_value: size.size_value || "",
+    size_unit: size.size_unit || "",
+    unitToggle: size.products?.unitToggle === true,
+    sku: size.sku || size.products?.sku || "N/A",
+    previous_stock: null,
+    current_stock: Number(size.stock || 0),
+    threshold: alert.threshold,
+    status: alert.status,
+    source: "product_size_stock_snapshot",
+  };
+}
+
+async function fetchCurrentAffectedInventoryItems() {
+  const { data, error } = await supabase
+    .from("product_sizes")
+    .select(`
+      id,
+      product_id,
+      size_name,
+      size_value,
+      size_unit,
+      sku,
+      stock,
+      is_active,
+      products!inner (
+        id,
+        name,
+        sku,
+        unitToggle,
+        is_active
+      )
+    `)
+    .lte("stock", 50)
+    .order("stock", { ascending: true })
+    .limit(500);
+
+  if (error) throw error;
+
+  return (data || [])
+    .filter((size) => size.is_active !== false && size.products?.is_active !== false)
+    .map(mapProductSizeToInventoryItem)
+    .filter(Boolean);
+}
+
+async function getInventoryAlertStateMap(productSizeIds) {
+  const ids = [...new Set((productSizeIds || []).filter(Boolean))];
+  if (ids.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("inventory_alert_state")
+    .select("*")
+    .in("product_size_id", ids);
+
+  if (error) throw error;
+
+  return new Map((data || []).map((row) => [row.product_size_id, row]));
+}
+
+function shouldNotifyInventoryItem(item, state) {
+  if (!state) return true;
+  if (state.resolved_at) return true;
+  if (state.last_status !== item.status) return true;
+
+  const previousRank = inventoryStatusRank[state.last_status] || 0;
+  const currentRank = inventoryStatusRank[item.status] || 0;
+  return currentRank > previousRank;
+}
+
+function sortInventoryItemsBySeverity(items) {
+  return [...items].sort((a, b) => {
+    const rankDiff = (inventoryStatusRank[b.status] || 0) - (inventoryStatusRank[a.status] || 0);
+    if (rankDiff !== 0) return rankDiff;
+    return Number(a.current_stock || 0) - Number(b.current_stock || 0);
+  });
+}
+
+async function upsertInventoryAlertState(items, queueId, eventIdByProductSizeId = new Map()) {
+  if (!items.length) return;
+
+  const now = new Date().toISOString();
+  const rows = items.map((item) => ({
+    product_size_id: item.product_size_id,
+    product_id: item.product_id,
+    last_status: item.status,
+    last_stock: item.current_stock,
+    last_email_queue_id: queueId,
+    last_event_id: eventIdByProductSizeId.get(item.product_size_id) || null,
+    last_notified_at: now,
+    resolved_at: null,
+    updated_at: now,
+  }));
+
+  const { error } = await supabase
+    .from("inventory_alert_state")
+    .upsert(rows, { onConflict: "product_size_id" });
+
+  if (error) throw error;
+}
 
 async function syncCampaignDeliveryStatus(campaignId) {
   if (!campaignId) return;
@@ -284,12 +490,15 @@ async function processEmailQueue() {
   const results = { processed: 0, sent: 0, failed: 0 };
 
   try {
+    const now = new Date().toISOString();
+
     // Get pending emails that are due to send
     const { data: pendingEmails, error } = await supabase
       .from("email_queue")
       .select("*")
       .eq("status", "pending")
-      .lte("scheduled_at", new Date().toISOString())
+      .lte("scheduled_at", now)
+      .or(`next_retry_at.is.null,next_retry_at.lte.${now}`)
       .order("priority", { ascending: false })
       .order("scheduled_at", { ascending: true })
       .limit(CONFIG.queueBatchSize);
@@ -301,6 +510,7 @@ async function processEmailQueue() {
 
     for (const queuedEmail of pendingEmails) {
       results.processed++;
+      const recipientEmail = queuedEmail.to_email || queuedEmail.email;
 
       // Mark as processing (simple update)
       const { error: updateError } = await supabase
@@ -310,7 +520,7 @@ async function processEmailQueue() {
         .eq("status", "pending");
 
       if (updateError) {
-        log("❌", `Update error for ${queuedEmail.to_email}: ${updateError.message}`);
+        log("❌", `Update error for ${recipientEmail}: ${updateError.message}`);
         continue;
       }
 
@@ -322,7 +532,7 @@ async function processEmailQueue() {
         .single();
 
       if (!verifyStatus || verifyStatus.status !== "processing") {
-        log("⏭️", `Skipping ${queuedEmail.to_email} - already picked by another process`);
+        log("⏭️", `Skipping ${recipientEmail} - already picked by another process`);
         continue;
       }
 
@@ -337,7 +547,7 @@ async function processEmailQueue() {
         // Base variables from metadata
         const variables = {
           ...metadata,
-          email: queuedEmail.to_email,
+          email: recipientEmail,
           user_name: metadata.first_name
             ? `${metadata.first_name} ${metadata.last_name || ""}`.trim()
             : metadata.user_name || "Valued Customer",
@@ -347,7 +557,7 @@ async function processEmailQueue() {
           name: metadata.first_name || metadata.user_name || "Valued Customer",
           first_name: metadata.first_name || "",
           last_name: metadata.last_name || "",
-          unsubscribe_url: `${process.env.APP_URL || "https://9rx.com"}/api/email/unsubscribe?t=${metadata.tracking_id || ""}&e=${encodeURIComponent(queuedEmail.to_email)}`,
+          unsubscribe_url: `${process.env.APP_URL || "https://9rx.com"}/api/email/unsubscribe?t=${metadata.tracking_id || ""}&e=${encodeURIComponent(recipientEmail || "")}`,
           company_name: "9RX",
           current_year: new Date().getFullYear().toString(),
           shop_url: "https://9rx.com/pharmacy/products",
@@ -383,7 +593,7 @@ async function processEmailQueue() {
 
         const htmlContent = replaceTemplateVariables(queuedEmail.html_content, variables);
         const subject = replaceTemplateVariables(queuedEmail.subject, variables);
-        const sendResult = await mailSender(queuedEmail.to_email, subject, htmlContent);
+        const sendResult = await mailSender(recipientEmail, subject, htmlContent);
 
         if (sendResult.success) {
           // CRITICAL: Update queue status to sent - MUST succeed
@@ -398,16 +608,16 @@ async function processEmailQueue() {
             .eq("id", queuedEmail.id);
 
           if (updateError) {
-            log("❌", `CRITICAL: Failed to mark email as sent for ${queuedEmail.to_email}: ${updateError.message}`);
+            log("❌", `CRITICAL: Failed to mark email as sent for ${recipientEmail}: ${updateError.message}`);
             // Even if update fails, email was sent - log it anyway
           } else {
-            log("✅", `Email sent & marked: ${queuedEmail.to_email}`);
+            log("✅", `Email sent & marked: ${recipientEmail}`);
           }
 
           // Log the email (this creates the record that prevents duplicates)
           const { error: logError } = await supabase.from("email_logs").insert({
             user_id: metadata.user_id || null,
-            email_address: queuedEmail.to_email,
+            email_address: recipientEmail,
             subject: subject,
             email_type: queuedEmail.campaign_id ? "campaign" : queuedEmail.automation_id ? "automation" : "transactional",
             status: "sent",
@@ -420,7 +630,7 @@ async function processEmailQueue() {
           });
 
           if (logError) {
-            log("⚠️", `Failed to log email for ${queuedEmail.to_email}: ${logError.message}`);
+            log("⚠️", `Failed to log email for ${recipientEmail}: ${logError.message}`);
           }
 
           // Update campaign sent count
@@ -468,7 +678,7 @@ async function processEmailQueue() {
           .eq("id", queuedEmail.id);
 
         results.failed++;
-        log("❌", `Failed to send to ${queuedEmail.to_email}: ${sendError.message}`);
+        log("❌", `Failed to send to ${recipientEmail}: ${sendError.message}`);
 
         if (queuedEmail.campaign_id) {
           await syncCampaignDeliveryStatus(queuedEmail.campaign_id);
@@ -513,6 +723,338 @@ async function retryFailedEmails() {
     return data?.length || 0;
   } catch (error) {
     log("❌", "Retry failed emails error:", error.message);
+    return 0;
+  }
+}
+
+// ============================================
+// 2B. PROCESS INVENTORY STOCK ALERT EVENTS
+// ============================================
+async function processInventoryStockAlerts() {
+  const results = { processed: 0, queued: 0, failed: 0, recipients: 0, skippedCooldown: false, mode: "group" };
+  let lockedEventIds = [];
+  let lockedEventsForRetry = [];
+
+  try {
+    await syncQueuedInventoryAlertEvents();
+
+    const { data: pendingEvents, error } = await supabase
+      .from("inventory_alert_events")
+      .select("*")
+      .eq("status_state", "pending")
+      .lte("created_at", new Date().toISOString())
+      .order("created_at", { ascending: true })
+      .limit(CONFIG.inventoryAlertBatchSize);
+
+    if (error) throw error;
+    const currentItems = await fetchCurrentAffectedInventoryItems();
+    if ((!pendingEvents || pendingEvents.length === 0) && currentItems.length === 0) return results;
+
+    const stateMap = await getInventoryAlertStateMap(currentItems.map((item) => item.product_size_id));
+    const currentItemByProductSizeId = new Map(currentItems.map((item) => [item.product_size_id, item]));
+    const pendingEventByProductSizeId = new Map(
+      (pendingEvents || [])
+        .filter((event) => event.product_size_id)
+        .map((event) => [event.product_size_id, event])
+    );
+
+    const staleEventIds = (pendingEvents || [])
+      .filter((event) => {
+        const currentItem = currentItemByProductSizeId.get(event.product_size_id);
+        if (!currentItem) return true;
+        return !shouldNotifyInventoryItem(currentItem, stateMap.get(event.product_size_id));
+      })
+      .map((event) => event.id);
+
+    if (staleEventIds.length > 0) {
+      await supabase
+        .from("inventory_alert_events")
+        .update({
+          status_state: "cancelled",
+          processed_at: new Date().toISOString(),
+          error_message: "Inventory alert already covered or stock recovered",
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", staleEventIds)
+        .eq("status_state", "pending");
+    }
+
+    const unnotifiedItems = sortInventoryItemsBySeverity(
+      currentItems.filter((item) => shouldNotifyInventoryItem(item, stateMap.get(item.product_size_id)))
+    );
+
+    if (unnotifiedItems.length === 0) return results;
+
+    const cooldownActive = await isInventoryAlertInCooldown();
+    let itemsToQueue = unnotifiedItems.slice(0, CONFIG.inventoryAlertBatchSize);
+
+    if (cooldownActive) {
+      results.mode = "single";
+      results.skippedCooldown = true;
+
+      const pendingProductSizeIds = new Set((pendingEvents || []).map((event) => event.product_size_id).filter(Boolean));
+      const focusedItem = unnotifiedItems.find((item) => pendingProductSizeIds.has(item.product_size_id));
+
+      if (!focusedItem) {
+        log("⏳", `Inventory stock alert cooldown active; no new product-size alert is ready`);
+        return results;
+      }
+
+      itemsToQueue = [focusedItem];
+      log("⏳", `Inventory stock alert cooldown active; queueing one focused product alert`);
+    }
+
+    const eventIds = itemsToQueue
+      .map((item) => pendingEventByProductSizeId.get(item.product_size_id)?.id)
+      .filter(Boolean);
+
+    let lockedEvents = [];
+    if (eventIds.length > 0) {
+      const { data, error: lockError } = await supabase
+        .from("inventory_alert_events")
+        .update({
+          status_state: "processing",
+          last_attempt_at: new Date().toISOString(),
+        })
+        .in("id", eventIds)
+        .eq("status_state", "pending")
+        .select("*");
+
+      if (lockError) throw lockError;
+      lockedEvents = data || [];
+    }
+
+    lockedEventIds = lockedEvents.map((event) => event.id);
+    lockedEventsForRetry = lockedEvents;
+    results.processed = itemsToQueue.length;
+
+    const recipients = await getInventoryAlertRecipients();
+    results.recipients = recipients.length;
+
+    if (recipients.length === 0) {
+      for (const event of lockedEvents) {
+        const attempts = (event.attempts || 0) + 1;
+        await supabase
+          .from("inventory_alert_events")
+          .update({
+            status_state: attempts < (event.max_attempts || 3) ? "failed" : "cancelled",
+            attempts,
+            next_retry_at: attempts < (event.max_attempts || 3)
+              ? new Date(Date.now() + Math.pow(2, attempts) * 60000).toISOString()
+              : null,
+            error_message: "No inventory alert recipients configured",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", event.id);
+      }
+
+      results.failed = lockedEvents.length;
+      log("⚠️", "Inventory stock alert skipped: no recipients configured");
+      return results;
+    }
+
+    const htmlContent = inventoryStockAlertTemplate({
+      items: itemsToQueue,
+      generatedAt: new Date(),
+    });
+    const subject = getInventoryAlertSubject(itemsToQueue);
+    const trackingId = crypto.randomUUID();
+    const metadata = {
+      tracking_id: trackingId,
+      inventory_alert_event_ids: lockedEvents.map((event) => event.id),
+      inventory_alert_mode: cooldownActive ? "single" : "group",
+      product_size_ids: itemsToQueue.map((item) => item.product_size_id),
+      alert_count: itemsToQueue.length,
+      alert_statuses: itemsToQueue.reduce((acc, item) => {
+        acc[item.status] = (acc[item.status] || 0) + 1;
+        return acc;
+      }, {}),
+    };
+
+    const queueRows = recipients.map((email) => ({
+      to_email: email,
+      to_name: "9RX Inventory Team",
+      subject,
+      html_content: htmlContent,
+      text_content: `9RX inventory alert: ${itemsToQueue.length} product(s) need attention.`,
+      email_type: "inventory_alert",
+      priority: 20,
+      scheduled_at: new Date().toISOString(),
+      status: "pending",
+      attempts: 0,
+      max_attempts: 3,
+      metadata,
+    }));
+
+    const { data: queuedEmails, error: queueError } = await supabase
+      .from("email_queue")
+      .insert(queueRows)
+      .select("id");
+
+    if (queueError) throw queueError;
+
+    const firstQueueId = queuedEmails?.[0]?.id || null;
+    const eventIdByProductSizeId = new Map(lockedEvents.map((event) => [event.product_size_id, event.id]));
+
+    await upsertInventoryAlertState(itemsToQueue, firstQueueId, eventIdByProductSizeId);
+
+    if (lockedEvents.length > 0) {
+      await supabase
+        .from("inventory_alert_events")
+        .update({
+          status_state: "queued",
+          email_queue_id: firstQueueId,
+          processed_at: new Date().toISOString(),
+          error_message: null,
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", lockedEvents.map((event) => event.id));
+    }
+
+    results.queued = itemsToQueue.length;
+    log("📦", `Inventory stock alert ${results.mode} email queued for ${recipients.length} recipient(s): ${itemsToQueue.length} product(s)`);
+  } catch (error) {
+    results.failed = results.processed || 0;
+    log("❌", "Inventory stock alert processing error:", error.message);
+
+    if (lockedEventIds.length > 0) {
+      try {
+        for (const event of lockedEventsForRetry) {
+          const attempts = (event.attempts || 0) + 1;
+          await supabase
+            .from("inventory_alert_events")
+            .update({
+              status_state: attempts < (event.max_attempts || 3) ? "failed" : "cancelled",
+              attempts,
+              next_retry_at: attempts < (event.max_attempts || 3)
+                ? new Date(Date.now() + Math.pow(2, attempts) * 60000).toISOString()
+                : null,
+              error_message: error.message,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", event.id)
+            .eq("status_state", "processing");
+        }
+      } catch (updateError) {
+        log("❌", "Failed to mark inventory alerts as failed:", updateError.message);
+      }
+    }
+  }
+
+  return results;
+}
+
+async function syncQueuedInventoryAlertEvents() {
+  try {
+    const { data: queuedEvents, error } = await supabase
+      .from("inventory_alert_events")
+      .select("id, email_queue_id, attempts, max_attempts")
+      .eq("status_state", "queued")
+      .not("email_queue_id", "is", null)
+      .limit(100);
+
+    if (error) throw error;
+    if (!queuedEvents || queuedEvents.length === 0) return { sent: 0, failed: 0 };
+
+    const queueIds = [...new Set(queuedEvents.map((event) => event.email_queue_id).filter(Boolean))];
+    const { data: queueRows, error: queueError } = await supabase
+      .from("email_queue")
+      .select("id, status, error_message")
+      .in("id", queueIds);
+
+    if (queueError) throw queueError;
+
+    const queueStatusById = new Map((queueRows || []).map((row) => [row.id, row]));
+    const sentIds = [];
+    const failedEvents = [];
+
+    for (const event of queuedEvents) {
+      const queueRow = queueStatusById.get(event.email_queue_id);
+      if (!queueRow) continue;
+
+      if (queueRow.status === "sent") {
+        sentIds.push(event.id);
+      } else if (queueRow.status === "failed" || queueRow.status === "cancelled") {
+        failedEvents.push({
+          id: event.id,
+          attempts: event.attempts,
+          max_attempts: event.max_attempts,
+          error: queueRow.error_message || `Email queue ${queueRow.status}`,
+        });
+      }
+    }
+
+    if (sentIds.length > 0) {
+      await supabase
+        .from("inventory_alert_events")
+        .update({
+          status_state: "sent",
+          processed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", sentIds);
+    }
+
+    for (const event of failedEvents) {
+      const attempts = (event.attempts || 0) + 1;
+      const maxAttempts = event.max_attempts || 3;
+      await supabase
+        .from("inventory_alert_events")
+        .update({
+          status_state: attempts < maxAttempts ? "failed" : "cancelled",
+          attempts,
+          next_retry_at: attempts < maxAttempts
+            ? new Date(Date.now() + Math.pow(2, attempts) * 60000).toISOString()
+            : null,
+          error_message: event.error,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", event.id);
+    }
+
+    if (failedEvents.length > 0) {
+      const failedQueueIds = [...new Set(
+        failedEvents
+          .map((event) => queuedEvents.find((queuedEvent) => queuedEvent.id === event.id)?.email_queue_id)
+          .filter(Boolean)
+      )];
+
+      if (failedQueueIds.length > 0) {
+        await supabase
+          .from("inventory_alert_state")
+          .update({
+            last_email_queue_id: null,
+            resolved_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .in("last_email_queue_id", failedQueueIds);
+      }
+    }
+
+    return { sent: sentIds.length, failed: failedEvents.length };
+  } catch (error) {
+    log("❌", "Inventory alert status sync error:", error.message);
+    return { sent: 0, failed: 0 };
+  }
+}
+
+async function retryFailedInventoryStockAlerts() {
+  try {
+    const { data, error } = await supabase
+      .from("inventory_alert_events")
+      .update({ status_state: "pending" })
+      .eq("status_state", "failed")
+      .lt("attempts", 3)
+      .lte("next_retry_at", new Date().toISOString())
+      .select("id");
+
+    if (error) throw error;
+    if (data && data.length > 0) {
+      log("🔄", `Retrying ${data.length} inventory stock alert event(s)`);
+    }
+    return data?.length || 0;
+  } catch (error) {
+    log("❌", "Retry inventory stock alerts error:", error.message);
     return 0;
   }
 }
@@ -1842,6 +2384,8 @@ function startEmailCron() {
     inactiveUserInterval: `${CONFIG.inactiveUserInterval / 60000}m`,
     automationInterval: `${CONFIG.automationInterval / 1000}s`,
     retryInterval: `${CONFIG.retryInterval / 60000}m`,
+    inventoryAlertInterval: `${CONFIG.inventoryAlertInterval / 1000}s`,
+    inventoryAlertCooldown: `${CONFIG.inventoryAlertCooldownMinutes}m`,
   });
   log("🚀", "========================================");
 
@@ -1850,6 +2394,10 @@ function startEmailCron() {
 
   // 2. Retry failed emails (every 5 minutes)
   setInterval(retryFailedEmails, CONFIG.retryInterval);
+
+  // 2b. Convert inventory alert events into queued emails (every minute)
+  setInterval(processInventoryStockAlerts, CONFIG.inventoryAlertInterval);
+  setInterval(retryFailedInventoryStockAlerts, CONFIG.retryInterval);
 
   // 3. Check abandoned carts (every 5 minutes)
   setInterval(checkAbandonedCarts, CONFIG.abandonedCartInterval);
@@ -1879,6 +2427,7 @@ function startEmailCron() {
   setTimeout(async () => {
     log("🔄", "Running initial checks...");
     await processEmailQueue();
+    await processInventoryStockAlerts();
     await checkAbandonedCarts();
     await processScheduledAutomations();
     log("✅", "Initial checks complete");
@@ -1891,6 +2440,8 @@ module.exports = {
   startEmailCron,
   processEmailQueue,
   retryFailedEmails,
+  processInventoryStockAlerts,
+  retryFailedInventoryStockAlerts,
   checkAbandonedCarts,
   checkInactiveUsers,
   processScheduledAutomations,

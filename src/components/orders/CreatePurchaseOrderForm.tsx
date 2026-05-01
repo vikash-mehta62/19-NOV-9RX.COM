@@ -35,6 +35,7 @@ import {
 } from "@/lib/documentSettings";
 import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
 import { fetchOrderedCategories, fetchOrderedSubcategories } from "@/services/productTreeService";
+import { getAddressPredictions, getPlaceDetails } from "@/utils/googleAddressHelper";
 
 const ADD_NEW_SUBCATEGORY_VALUE = "__add_new_subcategory__";
 const MANUAL_NO_UNIT_VALUE = "__no_unit__";
@@ -142,6 +143,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
     country: "",
   });
   const [warehouseAddressErrors, setWarehouseAddressErrors] = useState<WarehouseAddressErrors>({});
+  const [warehouseStreetSuggestions, setWarehouseStreetSuggestions] = useState<any[]>([]);
   const [editingPriceFor, setEditingPriceFor] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState<string>("");
   const [originalPrices, setOriginalPrices] = useState<Record<string, number>>({});
@@ -356,6 +358,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         notes: "",
         includePricingInPdf: true,
       },
+      purchase_number_external: "",
       specialInstructions: "",
     },
   });
@@ -491,6 +494,24 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       });
     }
   }
+
+  const handleWarehouseStreetChange = (value: string) => {
+    updateWarehouseAddressField("street", value);
+    getAddressPredictions(value, setWarehouseStreetSuggestions);
+  };
+
+  const handleWarehouseStreetSuggestionSelect = (placeId: string) => {
+    getPlaceDetails(placeId, (address) => {
+      if (!address) return;
+
+      updateWarehouseAddressField("street", address.street);
+      if (address.city) updateWarehouseAddressField("city", address.city);
+      if (address.state) updateWarehouseAddressField("state", address.state);
+      if (address.zip_code) updateWarehouseAddressField("zipCode", address.zip_code);
+      if (address.country) updateWarehouseAddressField("country", address.country);
+    });
+    setWarehouseStreetSuggestions([]);
+  };
 
   const handleWarehouseAddressEdit = async () => {
     if (!isEditingWarehouseAddress) {
@@ -923,6 +944,10 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       }
 
       // Prepare PO data
+      const manualShippingMethod = (data.purchase_number_external || "").trim();
+      const expectedDelivery =
+        data.shipping?.estimatedDelivery ||
+        new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const poData: any = {
         order_number: poNumber,
         profile_id: vendorId, // Vendor is the "customer" for PO
@@ -945,9 +970,13 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
           },
         },
         shippingAddress: orderShippingAddress,
-        estimated_delivery:
-          data.shipping?.estimatedDelivery ||
-          new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        shipping: {
+          ...(data.shipping || {}),
+          estimatedDelivery: expectedDelivery,
+        },
+        purchase_number_external: manualShippingMethod || null,
+        shipping_method: manualShippingMethod || null,
+        estimated_delivery: expectedDelivery,
         location_id: vendorId,
         poAccept: false, // Mark as PO
         payment_status: "unpaid",
@@ -1216,7 +1245,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
             <p className="text-sm uppercase tracking-[0.3em] text-blue-100">Purchase Order Workspace</p>
             <h1 className="mt-2 text-3xl font-semibold">Create vendor PO with pricing and delivery control</h1>
             <p className="mt-3 max-w-2xl text-sm text-blue-100/90">
-              Select catalog items, adjust vendor cost before submission, and store a vendor reference so the PO stays usable after approval.
+              Select catalog items, adjust vendor cost before submission, and add the shipping method that should print on the PO.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3">
@@ -1367,12 +1396,28 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
               </div>
               <div className="md:col-span-2">
                 <Label htmlFor="warehouse_street" className="text-sm">Street Address <span className="text-red-500">*</span></Label>
-                <Input
-                  id="warehouse_street"
-                  value={editableWarehouseAddress.street}
-                  onChange={(e) => updateWarehouseAddressField("street", e.target.value)}
-                  className="mt-1"
-                />
+                <div className="relative">
+                  <Input
+                    id="warehouse_street"
+                    value={editableWarehouseAddress.street}
+                    onChange={(e) => handleWarehouseStreetChange(e.target.value)}
+                    className="mt-1"
+                    autoComplete="off"
+                  />
+                  {warehouseStreetSuggestions.length > 0 && (
+                    <ul className="absolute left-0 z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border bg-white shadow-lg">
+                      {warehouseStreetSuggestions.map((suggestion) => (
+                        <li
+                          key={suggestion.place_id}
+                          className="cursor-pointer px-4 py-2 text-sm hover:bg-blue-50"
+                          onClick={() => handleWarehouseStreetSuggestionSelect(suggestion.place_id)}
+                        >
+                          {suggestion.description}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
                 {warehouseAddressErrors.street ? <p className="mt-1 text-sm text-red-600">{warehouseAddressErrors.street}</p> : null}
               </div>
               <div>
@@ -1459,6 +1504,23 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                         {...field}
                         type="date"
                         value={field.value || ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="purchase_number_external"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Shipping Method</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        value={field.value || ""}
+                        placeholder="Enter shipping method"
                       />
                     </FormControl>
                     <FormMessage />

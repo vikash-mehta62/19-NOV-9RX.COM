@@ -74,12 +74,15 @@ exports.processQueue = async (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
 
   try {
+    const now = new Date().toISOString();
+
     // Get pending emails that are due
     const { data: pendingEmails, error } = await supabase
       .from("email_queue")
       .select("*")
       .eq("status", "pending")
-      .lte("scheduled_at", new Date().toISOString())
+      .lte("scheduled_at", now)
+      .or(`next_retry_at.is.null,next_retry_at.lte.${now}`)
       .order("priority", { ascending: false })
       .order("scheduled_at", { ascending: true })
       .limit(limit);

@@ -1,5 +1,6 @@
 import { useCart } from "@/hooks/use-cart";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ShoppingCart, Trash2, Plus, Minus, MapPin } from "lucide-react";
 import {
@@ -67,6 +68,7 @@ export const CartDrawer = () => {
   const [showPharmacySelection, setShowPharmacySelection] = useState(false);
   const [selectedPharmacy, setSelectedPharmacy] = useState<string>("");
   const [pharmacies, setPharmacies] = useState<any[]>([]);
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
   const navigate = useNavigate();
   const userProfile = useSelector(selectUserProfile);
 
@@ -132,6 +134,8 @@ export const CartDrawer = () => {
     newQuantity: number,
     sizeId: string
   ) => {
+    if (newQuantity < 1) return;
+
     const success = await updateQuantity(productId, newQuantity, sizeId);
     if (!success) {
       toast({
@@ -139,7 +143,44 @@ export const CartDrawer = () => {
         description: "Failed to update quantity",
         variant: "destructive",
       });
+      return;
     }
+
+    resetQuantityDraft(productId, sizeId);
+  };
+
+  const getQuantityKey = (productId: string, sizeId: string) => `${productId}:${sizeId}`;
+
+  const handleQuantityDraftChange = (productId: string, sizeId: string, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    setQuantityDrafts((prev) => ({
+      ...prev,
+      [getQuantityKey(productId, sizeId)]: value,
+    }));
+  };
+
+  const resetQuantityDraft = (productId: string, sizeId: string) => {
+    const key = getQuantityKey(productId, sizeId);
+    setQuantityDrafts((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const commitQuantityDraft = async (
+    productId: string,
+    sizeId: string,
+    fallbackQuantity: number
+  ) => {
+    const rawValue = quantityDrafts[getQuantityKey(productId, sizeId)];
+    const parsed = Number.parseInt(rawValue ?? "", 10);
+    const nextQuantity = Number.isFinite(parsed) && parsed > 0
+      ? parsed
+      : Math.max(1, fallbackQuantity);
+
+    await handleQuantityChange(productId, nextQuantity, sizeId);
   };
 
   const handleRemoveItem = async (productId: string) => {
@@ -301,9 +342,32 @@ export const CartDrawer = () => {
                               >
                                 <Minus className="h-4 w-4" />
                               </Button>
-                              <span className="w-6 text-center">
-                                {(item.sizes || []).find((s) => s.id === size.id)?.quantity}
-                              </span>
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                aria-label={`Quantity for ${item.name} ${size.size_value}`}
+                                value={
+                                  quantityDrafts[getQuantityKey(item.productId, size.id)]
+                                  ?? String((item.sizes || []).find((s) => s.id === size.id)?.quantity || 1)
+                                }
+                                onChange={(event) =>
+                                  handleQuantityDraftChange(item.productId, size.id, event.target.value)
+                                }
+                                onBlur={() =>
+                                  commitQuantityDraft(item.productId, size.id, size.quantity || 1)
+                                }
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.currentTarget.blur();
+                                  }
+                                  if (event.key === "Escape") {
+                                    resetQuantityDraft(item.productId, size.id);
+                                    event.currentTarget.blur();
+                                  }
+                                }}
+                                className="h-7 min-h-0 w-9 rounded px-1 text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              />
                               <Button
                                 size="icon"
                                 variant="outline"

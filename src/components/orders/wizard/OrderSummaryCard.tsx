@@ -2,6 +2,7 @@ import { CartItem } from "@/store/types/cartTypes";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { ChevronDown, ChevronUp, ShoppingCart, Tag, Gift, Package, Sparkles, ArrowRight, AlertCircle, Plus, Minus, Trash2 } from "lucide-react";
 import { useState, useMemo, memo, useCallback } from "react";
@@ -83,9 +84,12 @@ const OrderSummaryCardComponent = ({
   const [isItemsExpanded, setIsItemsExpanded] = useState(true);
   const [appliedDiscounts, setAppliedDiscounts] = useState<AppliedDiscount[]>([]);
   const [totalDiscount, setTotalDiscount] = useState(0);
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
   
   // Handle quantity change
   const handleQuantityChange = async (productId: string, newQuantity: number, sizeId: string) => {
+    if (newQuantity < 1) return;
+
     // Find the item and size to check stock
     const item = items.find(i => i.productId === productId);
     const size = item?.sizes?.find(s => s.id === sizeId);
@@ -101,6 +105,13 @@ const OrderSummaryCardComponent = ({
     
     try {
       await updateQuantity(productId, newQuantity, sizeId);
+      const key = getQuantityKey(productId, sizeId);
+      setQuantityDrafts((prev) => {
+        if (!(key in prev)) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
     } catch (error: any) {
       toast({
         title: "Error",
@@ -109,6 +120,41 @@ const OrderSummaryCardComponent = ({
       });
     }
   };
+
+  const getQuantityKey = useCallback((productId: string, sizeId: string) => `${productId}:${sizeId}`, []);
+
+  const handleQuantityDraftChange = useCallback((productId: string, sizeId: string, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    setQuantityDrafts((prev) => ({
+      ...prev,
+      [getQuantityKey(productId, sizeId)]: value,
+    }));
+  }, [getQuantityKey]);
+
+  const resetQuantityDraft = useCallback((productId: string, sizeId: string) => {
+    const key = getQuantityKey(productId, sizeId);
+    setQuantityDrafts((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, [getQuantityKey]);
+
+  const commitQuantityDraft = useCallback(async (
+    productId: string,
+    sizeId: string,
+    fallbackQuantity: number
+  ) => {
+    const key = getQuantityKey(productId, sizeId);
+    const rawValue = quantityDrafts[key];
+    const parsed = Number.parseInt(rawValue ?? "", 10);
+    const nextQuantity = Number.isFinite(parsed) && parsed > 0
+      ? parsed
+      : Math.max(1, fallbackQuantity);
+
+    await handleQuantityChange(productId, nextQuantity, sizeId);
+  }, [getQuantityKey, handleQuantityChange, quantityDrafts]);
 
   // Handle remove item
   const handleRemoveItem = async (productId: string) => {
@@ -306,7 +352,7 @@ const OrderSummaryCardComponent = ({
                   return (
                     <div
                       key={`${item.productId}-${index}`}
-                      className="flex gap-2 sm:gap-3 text-xs sm:text-sm transition-all duration-200 hover:bg-gray-50 rounded p-2"
+                      className="flex gap-2 sm:gap-3 text-xs sm:text-sm transition-all duration-200 hover:bg-slate-50 rounded-lg p-2"
                       role="listitem"
                     >
                       <img
@@ -320,7 +366,7 @@ const OrderSummaryCardComponent = ({
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
-                          <p className="font-medium text-gray-900 truncate text-xs sm:text-sm flex-1" title={item.name}>
+                          <p className="font-semibold text-slate-950 truncate text-xs sm:text-sm flex-1" title={item.name}>
                             {item.name}
                           </p>
                           <Button
@@ -340,11 +386,16 @@ const OrderSummaryCardComponent = ({
                             {item.sizes.map((size: any, sizeIdx: number) => (
                               <div
                                 key={sizeIdx}
-                                className="rounded-md border border-slate-200 bg-slate-50/80 px-2 py-2"
+                                className="rounded-lg bg-slate-50 px-2.5 py-2.5"
                               >
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="truncate text-[11px] font-medium text-slate-700">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    {size.size_name && (
+                                      <p className="truncate text-[11px] font-semibold text-slate-900">
+                                        {size.size_name}
+                                      </p>
+                                    )}
+                                    <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-slate-600">
                                       {size.size_value} {item.unitToggle ? ` ${size.size_unit || ""}` : ""}
                                     </p>
                                     <div className="flex items-center gap-2 flex-wrap">
@@ -358,48 +409,72 @@ const OrderSummaryCardComponent = ({
                                       )}
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    {/* Quantity Controls */}
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        size="icon"
-                                        variant="outline"
-                                        className="h-6 w-6 rounded"
-                                        onClick={() =>
-                                          handleQuantityChange(
-                                            item.productId,
-                                            size.quantity - 1,
-                                            size.id
-                                          )
+                                  <span className="shrink-0 text-xs font-semibold text-blue-600">
+                                    ${(size.price || 0).toFixed(2)}
+                                  </span>
+                                </div>
+
+                                <div className="mt-2 flex items-center justify-between gap-2">
+                                  {/* Quantity Controls */}
+                                  <div className="inline-flex h-8 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+                                    <button
+                                      type="button"
+                                      className="flex h-8 w-8 items-center justify-center text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:text-slate-300"
+                                      onClick={() =>
+                                        handleQuantityChange(
+                                          item.productId,
+                                          size.quantity - 1,
+                                          size.id
+                                        )
+                                      }
+                                      disabled={size.quantity <= 1}
+                                      aria-label={`Decrease quantity for ${item.name} ${size.size_value}`}
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </button>
+                                    <Input
+                                      type="text"
+                                      inputMode="numeric"
+                                      pattern="[0-9]*"
+                                      aria-label={`Quantity for ${item.name} ${size.size_value}`}
+                                      value={quantityDrafts[getQuantityKey(item.productId, size.id)] ?? String(size.quantity || 1)}
+                                      onChange={(event) =>
+                                        handleQuantityDraftChange(item.productId, size.id, event.target.value)
+                                      }
+                                      onBlur={() =>
+                                        commitQuantityDraft(item.productId, size.id, size.quantity || 1)
+                                      }
+                                      onKeyDown={(event) => {
+                                        if (event.key === "Enter") {
+                                          event.currentTarget.blur();
                                         }
-                                        disabled={size.quantity <= 1}
-                                      >
-                                        <Minus className="h-3 w-3" />
-                                      </Button>
-                                      <span className="w-6 text-center text-xs font-medium">
-                                        {size.quantity}
-                                      </span>
-                                      <Button
-                                        size="icon"
-                                        variant="outline"
-                                        className="h-6 w-6 rounded"
-                                        onClick={() =>
-                                          handleQuantityChange(
-                                            item.productId,
-                                            size.quantity + 1,
-                                            size.id
-                                          )
+                                        if (event.key === "Escape") {
+                                          resetQuantityDraft(item.productId, size.id);
+                                          event.currentTarget.blur();
                                         }
-                                        disabled={size.stock !== undefined && size.quantity >= size.stock}
-                                      >
-                                        <Plus className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                    {/* Price */}
-                                    <span className="text-xs font-semibold text-gray-900 min-w-[50px] text-right">
-                                      ${((size.quantity || 0) * (size.price || 0)).toFixed(2)}
-                                    </span>
+                                      }}
+                                      className="h-8 min-h-0 w-10 rounded-none border-y-0 border-x border-slate-200 px-1 text-center text-xs font-semibold shadow-none focus-visible:z-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    />
+                                    <button
+                                      type="button"
+                                      className="flex h-8 w-8 items-center justify-center text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:text-slate-300"
+                                      onClick={() =>
+                                        handleQuantityChange(
+                                          item.productId,
+                                          size.quantity + 1,
+                                          size.id
+                                        )
+                                      }
+                                      disabled={size.stock !== undefined && size.quantity >= size.stock}
+                                      aria-label={`Increase quantity for ${item.name} ${size.size_value}`}
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </button>
                                   </div>
+                                  {/* Price */}
+                                  <span className="shrink-0 text-xs font-semibold text-slate-950">
+                                    ${((size.quantity || 0) * (size.price || 0)).toFixed(2)}
+                                  </span>
                                 </div>
                               </div>
                             ))}

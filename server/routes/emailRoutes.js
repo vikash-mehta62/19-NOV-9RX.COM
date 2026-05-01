@@ -7,6 +7,7 @@ const { resendWebhook, sendgridWebhook, sesWebhook } = require("../controllers/e
 const { processQueue, retryFailed, getStats, sendTest } = require("../controllers/emailQueueProcessor");
 const { 
   processEmailQueue, 
+  processInventoryStockAlerts,
   checkAbandonedCarts, 
   checkInactiveUsers, 
   processScheduledAutomations,
@@ -56,6 +57,7 @@ router.post("/cron/run-all", async (req, res) => {
   try {
     const results = {
       queue: await processEmailQueue(),
+      inventoryStockAlerts: await processInventoryStockAlerts(),
       abandonedCarts: await checkAbandonedCarts(),
       inactiveUsers: await checkInactiveUsers(),
       scheduledAutomations: await processScheduledAutomations(),
@@ -71,6 +73,15 @@ router.post("/cron/queue", async (req, res) => {
   try {
     const result = await processEmailQueue();
     res.json({ success: true, message: "Queue processed", result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+router.post("/cron/inventory-stock-alerts", async (req, res) => {
+  try {
+    const result = await processInventoryStockAlerts();
+    res.json({ success: true, message: "Inventory stock alerts processed", result });
   } catch (error) {
     res.status(500).json({ success: false, error: "Internal server error" });
   }

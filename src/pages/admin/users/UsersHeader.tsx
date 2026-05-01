@@ -19,25 +19,25 @@ const getUserPageCopy = (filterType: string) => {
       return {
         title: "Group Management",
         description: "Manage and monitor group accounts.",
-        addLabel: "Add Group",
+        addLabel: "Add Customer",
       };
     case "vendor":
       return {
         title: "Vendor Management",
         description: "Manage and monitor vendor accounts.",
-        addLabel: "Add Vendor",
+        addLabel: "Add Customer",
       };
     case "hospital":
       return {
         title: "Hospital Management",
         description: "Manage and monitor hospital accounts.",
-        addLabel: "Add Hospital",
+        addLabel: "Add Customer",
       };
     case "admin":
       return {
         title: "Internal Admin Management",
         description: "Manage and monitor internal admin accounts.",
-        addLabel: "Add Internal Admin",
+        addLabel: "Add Customer",
       };
     default:
       return {

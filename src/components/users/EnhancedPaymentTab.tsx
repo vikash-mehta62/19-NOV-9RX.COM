@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import axios from "../../../axiosconfig";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ import {
   Clock,
   FileText,
   Edit,
+  Send,
   TrendingUp,
 } from "lucide-react";
 import { PayCreditModal } from "./PayCreditModal";
@@ -61,9 +63,24 @@ interface EnhancedPaymentTabProps {
   readOnly?: boolean;
 }
 
-const DISABLED_CREDIT_STATUSES = ["suspended", "blocked", "inactive", "disabled"];
+const DISABLED_CREDIT_STATUSES = ["suspended", "blocked", "inactive", "disabled", "pending_terms", "documentation_pending", "pending_acceptance"];
+const PENDING_CREDIT_STATUSES = ["pending", "pending_terms", "documentation_pending", "pending_acceptance"];
 const getDisplayCreditStatus = (status?: string | null) =>
-  DISABLED_CREDIT_STATUSES.includes(String(status || "").toLowerCase()) ? "inactive" : "active";
+  PENDING_CREDIT_STATUSES.includes(String(status || "").toLowerCase())
+    ? "pending"
+    : DISABLED_CREDIT_STATUSES.includes(String(status || "").toLowerCase())
+      ? "inactive"
+      : "active";
+
+interface PendingCreditTermsSummary {
+  id: string;
+  credit_limit: number;
+  net_terms: number;
+  interest_rate: number;
+  status: string;
+  sent_at: string;
+  expires_at: string | null;
+}
 
 interface Transaction {
   id: string;
@@ -87,6 +104,8 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
   const [hasPendingTerms, setHasPendingTerms] = useState(false);
+  const [pendingTermsSummary, setPendingTermsSummary] = useState<PendingCreditTermsSummary | null>(null);
+  const [hasFormalCreditLine, setHasFormalCreditLine] = useState(false);
   const { toast } = useToast();
   
   // Screen size detection for responsive design
@@ -103,6 +122,8 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
   const [autoStatement, setAutoStatement] = useState(true);
   const [statementFrequency, setStatementFrequency] = useState("monthly");
   const [creditAccountEnabled, setCreditAccountEnabled] = useState(true);
+  const [isSavingCreditSettings, setIsSavingCreditSettings] = useState(false);
+  const [isSendingCreditTerms, setIsSendingCreditTerms] = useState(false);
 
   useEffect(() => {
     if (userId) {
@@ -138,12 +159,13 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
 
       if (profileError) throw profileError;
 
-      // Fetch active credit line (overrides profile data if exists)
+      // Fetch formal credit line (active or suspended). First-time accounts
+      // should not get one until the customer accepts credit terms.
       const { data: creditLineData } = await supabase
         .from("user_credit_lines")
         .select("*")
         .eq("user_id", userId)
-        .eq("status", "active")
+        .in("status", ["active", "suspended"])
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -151,16 +173,25 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
       // Check for pending terms (new offers)
       const { data: pendingTerms } = await supabase
         .from("sent_credit_terms")
-        .select("id")
+        .select("id, credit_limit, net_terms, interest_rate, status, sent_at, expires_at")
         .eq("user_id", userId)
-        .eq("status", "pending")
+        .in("status", ["pending", "viewed"])
+        .order("sent_at", { ascending: false })
         .limit(1);
 
-      if (pendingTerms && pendingTerms.length > 0) {
+      const pendingOffer = pendingTerms && pendingTerms.length > 0
+        ? (pendingTerms[0] as PendingCreditTermsSummary)
+        : null;
+
+      if (pendingOffer) {
         setHasPendingTerms(true);
+        setPendingTermsSummary(pendingOffer);
       } else {
         setHasPendingTerms(false);
+        setPendingTermsSummary(null);
       }
+
+      setHasFormalCreditLine(!!creditLineData);
 
       let settings = profileData as CreditSettings;
       const profileCreditStatus = String(profileData?.credit_status || "").toLowerCase();
@@ -192,7 +223,11 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
 
       // Set form values
       if (settings) {
-        setCreditLimit(settings.credit_limit?.toString() || "0");
+        const editableCreditLimit = !creditLineData && pendingOffer
+          ? pendingOffer.credit_limit
+          : settings.credit_limit;
+
+        setCreditLimit(editableCreditLimit?.toString() || "0");
         setPaymentTerms(settings.payment_terms || "net_30");
         setCreditDays(settings.credit_days?.toString() || "30");
         setLateFeePercentage(
@@ -214,16 +249,182 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
     }
   };
 
-  const handleSaveCreditSettings = async () => {
+  const sendCreditTermsForSignature = async ({
+    limit,
+    netTerms,
+    interestRate,
+    customMessage,
+  }: {
+    limit: number;
+    netTerms: number;
+    interestRate: number;
+    customMessage: string;
+  }) => {
+    const { data: creditTermsTemplate, error: templateError } = await supabase
+      .from("credit_terms")
+      .select("version")
+      .eq("is_active", true)
+      .single();
+
+    if (templateError || !creditTermsTemplate?.version) {
+      throw new Error("No active credit terms template found. Create a terms template before sending credit for signature.");
+    }
+
+    const response = await axios.post("/api/terms-management/send-credit-terms", {
+      userId,
+      creditLimit: limit,
+      netTerms,
+      interestRate,
+      termsVersion: creditTermsTemplate.version,
+      customMessage,
+      expiresInDays: 7,
+    });
+
+    if (!response?.data?.success) {
+      throw new Error(response?.data?.message || "Failed to send credit terms");
+    }
+  };
+
+  const moveProfileCreditToPendingTerms = async ({
+    paymentTermsValue,
+    creditDaysValue,
+    lateFeeValue,
+    autoStatementValue,
+    statementFrequencyValue,
+  }: {
+    paymentTermsValue: string;
+    creditDaysValue: number;
+    lateFeeValue: number;
+    autoStatementValue: boolean;
+    statementFrequencyValue: string;
+  }) => {
+    const { error: pendingProfileError } = await supabase
+      .from("profiles")
+      .update({
+        credit_limit: 0,
+        available_credit: 0,
+        payment_terms: paymentTermsValue,
+        credit_days: creditDaysValue,
+        late_payment_fee_percentage: lateFeeValue,
+        auto_statement: autoStatementValue,
+        statement_frequency: statementFrequencyValue,
+        credit_status: "pending_terms",
+      })
+      .eq("id", userId);
+
+    if (pendingProfileError) throw pendingProfileError;
+  };
+
+  const handleSendLegacyCreditTerms = async () => {
+    if (!creditSettings || isSendingCreditTerms) return;
+
+    const profileLimit = Number(creditSettings.credit_limit || 0);
+    const pendingLimit = Number(pendingTermsSummary?.credit_limit || 0);
+    const termsLimit = profileLimit > 0 ? profileLimit : pendingLimit;
+
+    if (termsLimit <= 0) {
+      toast({
+        title: "Credit limit required",
+        description: "Add a credit limit before sending terms.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSendingCreditTerms(true);
     try {
+      const netTerms = Number(creditSettings.credit_days || 30);
+      const interestRate = Number(creditSettings.late_payment_fee_percentage || 0);
+
+      await sendCreditTermsForSignature({
+        limit: termsLimit,
+        netTerms,
+        interestRate,
+        customMessage: "Credit line documentation requested by admin. Account will activate after terms are accepted.",
+      });
+
+      await moveProfileCreditToPendingTerms({
+        paymentTermsValue: creditSettings.payment_terms || "net_30",
+        creditDaysValue: netTerms,
+        lateFeeValue: interestRate,
+        autoStatementValue: creditSettings.auto_statement ?? true,
+        statementFrequencyValue: creditSettings.statement_frequency || "monthly",
+      });
+
+      toast({
+        title: "Credit terms sent",
+        description: "The profile credit limit is now pending documentation, so it will not double when the pharmacy accepts.",
+      });
+
+      loadCreditSettings();
+    } catch (error) {
+      console.error("Error sending legacy credit terms:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to send credit terms",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingCreditTerms(false);
+    }
+  };
+
+  const handleSaveCreditSettings = async () => {
+    if (isSavingCreditSettings) return;
+
+    setIsSavingCreditSettings(true);
+    try {
+      const requestedLimit = Number.parseFloat(creditLimit || "0") || 0;
+      const requestedCreditDays = Number.parseInt(creditDays || "30", 10) || 30;
+      const requestedLateFee = Number.parseFloat(lateFeePercentage || "0") || 0;
+
+      const { data: existingCreditLine, error: existingLineError } = await supabase
+        .from("user_credit_lines")
+        .select("id, status")
+        .eq("user_id", userId)
+        .in("status", ["active", "suspended"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingLineError) throw existingLineError;
+
+      const isFirstCreditActivation = !existingCreditLine && requestedLimit > 0 && creditAccountEnabled;
+
+      if (isFirstCreditActivation) {
+        await sendCreditTermsForSignature({
+          limit: requestedLimit,
+          netTerms: requestedCreditDays,
+          interestRate: requestedLateFee,
+          customMessage: "Credit line offered by admin. Account will activate after terms are accepted.",
+        });
+
+        await moveProfileCreditToPendingTerms({
+          paymentTermsValue: paymentTerms,
+          creditDaysValue: requestedCreditDays,
+          lateFeeValue: requestedLateFee,
+          autoStatementValue: autoStatement,
+          statementFrequencyValue: statementFrequency,
+        });
+
+        toast({
+          title: "Credit terms sent",
+          description: "The credit account will stay hidden until the pharmacy accepts the terms and signs the documentation.",
+        });
+
+        setIsEditDialogOpen(false);
+        loadCreditSettings();
+        return;
+      }
+
       // 1. Update Profile
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
-          credit_limit: parseFloat(creditLimit),
+          credit_limit: requestedLimit,
           payment_terms: paymentTerms,
-          credit_days: parseInt(creditDays),
-          late_payment_fee_percentage: parseFloat(lateFeePercentage),
+          credit_days: requestedCreditDays,
+          late_payment_fee_percentage: requestedLateFee,
           auto_statement: autoStatement,
           statement_frequency: statementFrequency,
           credit_status: creditAccountEnabled ? "good" : "suspended",
@@ -236,9 +437,9 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
       const { error: lineError } = await supabase
         .from("user_credit_lines")
         .update({
-          credit_limit: parseFloat(creditLimit),
-          net_terms: parseInt(creditDays),
-          interest_rate: parseFloat(lateFeePercentage),
+          credit_limit: requestedLimit,
+          net_terms: requestedCreditDays,
+          interest_rate: requestedLateFee,
           status: creditAccountEnabled ? "active" : "suspended",
         })
         .eq("user_id", userId)
@@ -257,9 +458,11 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
       console.error("Error saving credit settings:", error);
       toast({
         title: "Error",
-        description: "Failed to save credit settings",
+        description: error instanceof Error ? error.message : "Failed to save credit settings",
         variant: "destructive",
       });
+    } finally {
+      setIsSavingCreditSettings(false);
     }
   };
 
@@ -442,6 +645,8 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
         return "text-green-600 bg-green-50 border-green-200";
       case "inactive":
         return "text-red-600 bg-red-50 border-red-200";
+      case "pending":
+        return "text-amber-700 bg-amber-50 border-amber-200";
       default:
         return "text-gray-600 bg-gray-50 border-gray-200";
     }
@@ -453,6 +658,8 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
         return <CheckCircle className="w-5 h-5" />;
       case "inactive":
         return <AlertCircle className="w-5 h-5" />;
+      case "pending":
+        return <Clock className="w-5 h-5" />;
       default:
         return <Clock className="w-5 h-5" />;
     }
@@ -460,12 +667,28 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
 
   const isCheckoutCreditAvailable =
     !!creditSettings &&
+    hasFormalCreditLine &&
     (creditSettings.credit_limit || 0) > 0 &&
-    !DISABLED_CREDIT_STATUSES.includes(String(creditSettings.credit_status || "").toLowerCase());
+    !DISABLED_CREDIT_STATUSES.includes(String(creditSettings.credit_status || "").toLowerCase()) &&
+    !PENDING_CREDIT_STATUSES.includes(String(creditSettings.credit_status || "").toLowerCase());
 
   const checkoutAvailabilityLabel = isCheckoutCreditAvailable
     ? "Visible at checkout"
     : "Hidden at checkout";
+
+  const canSendCreditTerms =
+    !readOnly &&
+    !hasFormalCreditLine &&
+    !!creditSettings &&
+    (Number(creditSettings.credit_limit || 0) > 0 || !!pendingTermsSummary);
+
+  const adminPendingOfferAmount =
+    !readOnly && !hasFormalCreditLine && pendingTermsSummary
+      ? Number(pendingTermsSummary.credit_limit || 0)
+      : 0;
+
+  const displayCreditLimit = adminPendingOfferAmount || Number(creditSettings?.credit_limit || 0);
+  const displayAvailableCredit = Math.max(displayCreditLimit - Number(creditSettings?.credit_used || 0), 0);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -474,8 +697,8 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
     }).format(amount);
   };
 
-  const creditUtilization = creditSettings
-    ? (creditSettings.credit_used / creditSettings.credit_limit) * 100
+  const creditUtilization = creditSettings && displayCreditLimit > 0
+    ? (creditSettings.credit_used / displayCreditLimit) * 100
     : 0;
 
   useEffect(() => {
@@ -748,6 +971,22 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                     open={isEditDialogOpen}
                     onOpenChange={setIsEditDialogOpen}
                   >
+                    {canSendCreditTerms && (
+                      <Button
+                        variant="outline"
+                        size={isCompact ? "sm" : "default"}
+                        onClick={handleSendLegacyCreditTerms}
+                        disabled={isSendingCreditTerms}
+                        className={cn(isCompact && "text-xs h-8")}
+                      >
+                        <Send className={cn("mr-1", isCompact ? "w-3 h-3" : "w-4 h-4")} />
+                        {isSendingCreditTerms
+                          ? "Sending..."
+                          : pendingTermsSummary
+                            ? "Resend Terms"
+                            : "Send Terms"}
+                      </Button>
+                    )}
                     <DialogTrigger asChild>
                       <Button variant="outline" size={isCompact ? "sm" : "default"} className={cn(isCompact && "text-xs h-8")}>
                         <Edit className={cn("mr-1", isCompact ? "w-3 h-3" : "w-4 h-4")} />
@@ -769,6 +1008,21 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                             className={cn(isCompact && "h-9 text-sm")}
                           />
                         </div>
+                        {!hasFormalCreditLine && (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                            <div className="flex items-start gap-2">
+                              <Clock className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+                              <div className="space-y-1">
+                                <p className="text-sm font-medium text-amber-900">
+                                  Customer acceptance required
+                                </p>
+                                <p className="text-xs text-amber-800">
+                                  Saving a positive credit limit will send credit terms for signature. The credit account stays hidden at checkout until the pharmacy accepts the documentation.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         <div className="rounded-lg border p-3">
                           <div className="flex items-center justify-between gap-3">
                             <div className="space-y-1">
@@ -856,10 +1110,11 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                           </Button>
                           <Button 
                             onClick={handleSaveCreditSettings}
+                            disabled={isSavingCreditSettings}
                             size={isCompact ? "sm" : "default"}
                             className={cn(isCompact && "text-xs h-8")}
                           >
-                            Save Settings
+                            {isSavingCreditSettings ? "Saving..." : "Save Settings"}
                           </Button>
                         </div>
                       </div>
@@ -895,19 +1150,28 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                         isCheckoutCreditAvailable ? "text-emerald-700" : "text-amber-700"
                       )}
                     >
-                      {isCheckoutCreditAvailable
-                        ? "Pharmacy can use Credit Account during checkout."
-                        : "Pharmacy cannot use Credit Account during checkout until it is reactivated."}
+                      {pendingTermsSummary && !hasFormalCreditLine
+                        ? "Credit terms were sent. Pharmacy cannot use Credit Account until the terms are accepted and documentation is complete."
+                        : isCheckoutCreditAvailable
+                          ? "Pharmacy can use Credit Account during checkout."
+                          : "Pharmacy cannot use Credit Account during checkout until it is reactivated."}
                     </p>
+                    {pendingTermsSummary && !hasFormalCreditLine && (
+                      <p className="mt-1 text-xs text-amber-700">
+                        Pending offer: {formatCurrency(Number(pendingTermsSummary.credit_limit || 0))}, Net {pendingTermsSummary.net_terms}, sent {new Date(pendingTermsSummary.sent_at).toLocaleDateString()}.
+                      </p>
+                    )}
                   </div>
                   <Badge
                     className={cn(
-                      isCheckoutCreditAvailable
+                      pendingTermsSummary && !hasFormalCreditLine
+                        ? "bg-amber-100 text-amber-800 hover:bg-amber-100"
+                        : isCheckoutCreditAvailable
                         ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
                         : "bg-amber-100 text-amber-800 hover:bg-amber-100"
                     )}
                   >
-                    {checkoutAvailabilityLabel}
+                    {pendingTermsSummary && !hasFormalCreditLine ? "Documentation pending" : checkoutAvailabilityLabel}
                   </Badge>
                 </div>
               </div>
@@ -924,18 +1188,26 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                   Credit Limit
                 </p>
                 <p className={cn("font-bold", isCompact ? "text-lg" : "text-2xl")}>
-                  {formatCurrency(creditSettings.credit_limit)}
+                  {formatCurrency(displayCreditLimit)}
                 </p>
+                {adminPendingOfferAmount > 0 && (
+                  <p className="mt-1 text-xs font-medium text-amber-700">
+                    Pending terms
+                  </p>
+                )}
               </div>
               <div className={cn(isCompact && "text-center p-3 bg-green-50 rounded-lg")}>
                 <p className={cn("text-muted-foreground mb-1", isCompact ? "text-xs" : "text-sm")}>
                   Available Credit
                 </p>
                 <p className={cn("font-bold text-green-600", isCompact ? "text-lg" : "text-2xl")}>
-                  {formatCurrency(
-                    creditSettings.credit_limit - creditSettings.credit_used
-                  )}
+                  {formatCurrency(displayAvailableCredit)}
                 </p>
+                {adminPendingOfferAmount > 0 && (
+                  <p className="mt-1 text-xs font-medium text-amber-700">
+                    Hidden until accepted
+                  </p>
+                )}
               </div>
               <div className={cn(isCompact && "text-center p-3 bg-orange-50 rounded-lg")}>
                 <p className={cn("text-muted-foreground mb-1", isCompact ? "text-xs" : "text-sm")}>

@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { getAddressPredictions, getPlaceDetails } from "@/utils/googleAddressHelper";
 
 const trimString = (message?: string) =>
   z.string().trim().min(1, message || "This field is required");
@@ -145,6 +146,8 @@ interface VendorDialogFormProps {
 }
 
 type VendorTab = "contact" | "business" | "address";
+type AddressSuggestionKey = "billing" | "shipping";
+type AddressFieldRoot = "billingAddress" | "shippingAddress";
 
 const defaultAddress = {
   attention: "",
@@ -239,6 +242,10 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<VendorTab>("contact");
+  const [street1Suggestions, setStreet1Suggestions] = useState<Record<AddressSuggestionKey, any[]>>({
+    billing: [],
+    shipping: [],
+  });
   const { toast } = useToast();
 
   const mergedDefaults = useMemo(() => ({
@@ -254,6 +261,43 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
   });
 
   const sameAsShipping = form.watch("sameAsShipping");
+
+  const setSuggestions = (key: AddressSuggestionKey, suggestions: any[]) => {
+    setStreet1Suggestions((current) => ({ ...current, [key]: suggestions }));
+  };
+
+  const applyAddressSuggestion = (root: AddressFieldRoot, key: AddressSuggestionKey, placeId: string) => {
+    getPlaceDetails(placeId, (address) => {
+      if (!address) return;
+
+      const nextAddress = {
+        street1: address.street || "",
+        city: address.city || "",
+        state: address.state || "",
+        countryRegion: address.country || "USA",
+        zip_code: address.zip_code || "",
+      };
+
+      Object.entries(nextAddress).forEach(([fieldName, value]) => {
+        if (value) {
+          form.setValue(`${root}.${fieldName}` as keyof VendorFormData, value as never, {
+            shouldDirty: true,
+            shouldValidate: true,
+          });
+        }
+      });
+
+      if (root === "billingAddress" && form.getValues("sameAsShipping")) {
+        form.setValue(
+          "shippingAddress",
+          { ...form.getValues("billingAddress"), ...nextAddress },
+          { shouldDirty: true, shouldValidate: true }
+        );
+      }
+
+      setSuggestions(key, []);
+    });
+  };
 
   const closeDialog = () => {
     setOpen(false);
@@ -463,7 +507,36 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
                   <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <FormField control={form.control} name="billingAddress.attention" render={({ field }) => <FormItem><FormLabel>Attention</FormLabel><FormControl><Input {...field} placeholder="Attention / department" /></FormControl><FormMessage /></FormItem>} />
                     <FormField control={form.control} name="billingAddress.countryRegion" render={({ field }) => <FormItem><FormLabel>{requiredLabel("Country")}</FormLabel><FormControl><Input {...field} placeholder="Country" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="billingAddress.street1" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>{requiredLabel("Street 1")}</FormLabel><FormControl><Input {...field} placeholder="Street address" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.street1" render={({ field }) => (
+                      <FormItem className="relative md:col-span-2">
+                        <FormLabel>{requiredLabel("Street 1")}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="Street address"
+                            onChange={(event) => {
+                              field.onChange(event);
+                              getAddressPredictions(event.target.value, (suggestions) => setSuggestions("billing", suggestions));
+                            }}
+                          />
+                        </FormControl>
+                        {street1Suggestions.billing.length > 0 && (
+                          <ul className="absolute left-0 right-0 top-full z-[100003] mt-1 max-h-60 overflow-y-auto rounded-md border bg-white shadow-lg">
+                            {street1Suggestions.billing.map((suggestion) => (
+                              <li
+                                key={suggestion.place_id}
+                                className="cursor-pointer px-4 py-2 text-sm hover:bg-slate-100"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => applyAddressSuggestion("billingAddress", "billing", suggestion.place_id)}
+                              >
+                                {suggestion.description}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )} />
                     <FormField control={form.control} name="billingAddress.street2" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Street 2</FormLabel><FormControl><Input {...field} placeholder="Suite, unit, building" /></FormControl><FormMessage /></FormItem>} />
                     <FormField control={form.control} name="billingAddress.city" render={({ field }) => <FormItem><FormLabel>{requiredLabel("City")}</FormLabel><FormControl><Input {...field} placeholder="City" /></FormControl><FormMessage /></FormItem>} />
                     <FormField control={form.control} name="billingAddress.state" render={({ field }) => <FormItem><FormLabel>{requiredLabel("State")}</FormLabel><FormControl><Input {...field} placeholder="State" /></FormControl><FormMessage /></FormItem>} />
@@ -494,7 +567,36 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
                     <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       <FormField control={form.control} name="shippingAddress.attention" render={({ field }) => <FormItem><FormLabel>Attention</FormLabel><FormControl><Input {...field} placeholder="Dock / warehouse contact" /></FormControl><FormMessage /></FormItem>} />
                       <FormField control={form.control} name="shippingAddress.countryRegion" render={({ field }) => <FormItem><FormLabel>{requiredLabel("Country")}</FormLabel><FormControl><Input {...field} placeholder="Country" /></FormControl><FormMessage /></FormItem>} />
-                      <FormField control={form.control} name="shippingAddress.street1" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>{requiredLabel("Street 1")}</FormLabel><FormControl><Input {...field} placeholder="Street address" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.street1" render={({ field }) => (
+                        <FormItem className="relative md:col-span-2">
+                          <FormLabel>{requiredLabel("Street 1")}</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              placeholder="Street address"
+                              onChange={(event) => {
+                                field.onChange(event);
+                                getAddressPredictions(event.target.value, (suggestions) => setSuggestions("shipping", suggestions));
+                              }}
+                            />
+                          </FormControl>
+                          {street1Suggestions.shipping.length > 0 && (
+                            <ul className="absolute left-0 right-0 top-full z-[100003] mt-1 max-h-60 overflow-y-auto rounded-md border bg-white shadow-lg">
+                              {street1Suggestions.shipping.map((suggestion) => (
+                                <li
+                                  key={suggestion.place_id}
+                                  className="cursor-pointer px-4 py-2 text-sm hover:bg-slate-100"
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => applyAddressSuggestion("shippingAddress", "shipping", suggestion.place_id)}
+                                >
+                                  {suggestion.description}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      )} />
                       <FormField control={form.control} name="shippingAddress.street2" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Street 2</FormLabel><FormControl><Input {...field} placeholder="Suite, unit, building" /></FormControl><FormMessage /></FormItem>} />
                       <FormField control={form.control} name="shippingAddress.city" render={({ field }) => <FormItem><FormLabel>{requiredLabel("City")}</FormLabel><FormControl><Input {...field} placeholder="City" /></FormControl><FormMessage /></FormItem>} />
                       <FormField control={form.control} name="shippingAddress.state" render={({ field }) => <FormItem><FormLabel>{requiredLabel("State")}</FormLabel><FormControl><Input {...field} placeholder="State" /></FormControl><FormMessage /></FormItem>} />

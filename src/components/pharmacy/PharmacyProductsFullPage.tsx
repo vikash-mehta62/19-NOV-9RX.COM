@@ -1280,8 +1280,8 @@ console.log(userProfile)
       {/* Floating Cart Button for Mobile */}
       <FloatingCartButton />
 
-      {/* Floating Feedback for pharmacy users */}
-      <PharmacyFeedbackWidget />
+      {/* TO-DO: Floating Feedback for pharmacy users */}
+      {/* <PharmacyFeedbackWidget /> */}
     </div>
   )
 }

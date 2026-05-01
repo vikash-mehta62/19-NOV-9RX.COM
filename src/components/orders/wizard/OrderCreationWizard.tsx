@@ -55,9 +55,11 @@ interface AppliedDiscount {
 
 const hasActiveCreditAccount = (creditLimit: unknown, creditStatus?: string | null) =>
   Number(creditLimit || 0) > 0 &&
-  !["suspended", "blocked", "inactive", "disabled"].includes(
+  !["suspended", "blocked", "inactive", "disabled", "pending_terms", "documentation_pending", "pending_acceptance"].includes(
     String(creditStatus || "").toLowerCase()
   );
+
+const PENDING_CREDIT_STATUSES = ["pending_terms", "documentation_pending", "pending_acceptance"];
 
 const findScrollContainer = (element: HTMLElement | null): HTMLElement | Window => {
   if (!element) return window;
@@ -170,6 +172,69 @@ const OrderCreationWizardComponent = ({
   const { cartItems, clearCart, addToCart } = useCart();
   const { toast } = useToast();
 
+  const applyCreditAvailability = useCallback(
+    async (customerId: string | undefined, creditSource: any) => {
+      const source = creditSource || {};
+      const sourceLimit = Number(source.credit_limit || 0);
+      const sourceUsed = Number(source.credit_used || 0);
+      const sourceStatus = String(source.credit_status || "").toLowerCase();
+
+      if (hasActiveCreditAccount(sourceLimit, sourceStatus)) {
+        setHasCreditAccount(true);
+        setCreditLimit(sourceLimit);
+        setAvailableCredit(Math.max(0, sourceLimit - sourceUsed));
+        return;
+      }
+
+      if (
+        customerId &&
+        userType === "admin" &&
+        !isPharmacyMode &&
+        PENDING_CREDIT_STATUSES.includes(sourceStatus)
+      ) {
+        try {
+          const { data: pendingTerms } = await supabase
+            .from("sent_credit_terms")
+            .select("credit_limit")
+            .eq("user_id", customerId)
+            .in("status", ["pending", "viewed"])
+            .order("sent_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const pendingLimit = Number(pendingTerms?.credit_limit || 0);
+
+          if (pendingLimit > 0) {
+            const { data: pendingOrders } = await supabase
+              .from("orders")
+              .select("total_amount")
+              .eq("profile_id", customerId)
+              .eq("payment_method", "credit")
+              .eq("payment_status", "pending")
+              .eq("status", "credit_approval_processing");
+
+            const reservedCredit = (pendingOrders || []).reduce(
+              (sum, order: any) => sum + Number(order.total_amount || 0),
+              0
+            );
+
+            setHasCreditAccount(true);
+            setCreditLimit(pendingLimit);
+            setAvailableCredit(Math.max(0, pendingLimit - sourceUsed - reservedCredit));
+            return;
+          }
+        } catch (error) {
+          console.error("Error resolving pending credit offer:", error);
+        }
+      }
+
+      setHasCreditAccount(false);
+      setCreditLimit(sourceLimit);
+      setAvailableCredit(Math.max(0, sourceLimit - sourceUsed));
+    },
+    [isPharmacyMode, userType]
+  );
+
   const smartScrollToWizard = useCallback((force = false) => {
     const section = wizardSectionRef.current;
     if (!section) return;
@@ -262,9 +327,7 @@ const OrderCreationWizardComponent = ({
               zip_code: groupCustomer.billing_address?.zip_code || "",
             });
             setCustomerHasFreeShipping(groupCustomer.freeShipping || false);
-            setHasCreditAccount(hasActiveCreditAccount(profile.credit_limit, profile.credit_status));
-            setCreditLimit(Number(profile.credit_limit || 0));
-            setAvailableCredit(Math.max(0, Number(profile.credit_limit || 0) - Number(profile.credit_used || 0)));
+            await applyCreditAvailability(profile.id, profile);
             
             // Fetch profile shipping settings for group customer
             if (profile.id) {
@@ -285,24 +348,16 @@ const OrderCreationWizardComponent = ({
                     auto_shipping_threshold: profileData.auto_shipping_threshold,
                     auto_shipping_amount: profileData.auto_shipping_amount,
                   });
-                  setHasCreditAccount(hasActiveCreditAccount(profileData.credit_limit || profile.credit_limit, profileData.credit_status || profile.credit_status));
-                  const nextCreditLimit = Number(profileData.credit_limit || profile.credit_limit || 0);
-                  const nextCreditUsed = Number((profileData as any).credit_used || profile.credit_used || 0);
-                  setCreditLimit(nextCreditLimit);
-                  setAvailableCredit(Math.max(0, nextCreditLimit - nextCreditUsed));
+                  await applyCreditAvailability(profile.id, { ...profile, ...profileData });
                 } else {
                   console.log("❌ No profile shipping settings found for group customer:", profile.id);
                   setProfileShippingSettings(null);
-                  setHasCreditAccount(hasActiveCreditAccount(profile.credit_limit, profile.credit_status));
-                  setCreditLimit(Number(profile.credit_limit || 0));
-                  setAvailableCredit(Math.max(0, Number(profile.credit_limit || 0) - Number(profile.credit_used || 0)));
+                  await applyCreditAvailability(profile.id, profile);
                 }
               } catch (err) {
                 console.error("Error fetching profile shipping settings for group customer:", err);
                 setProfileShippingSettings(null);
-                setHasCreditAccount(hasActiveCreditAccount(profile.credit_limit, profile.credit_status));
-                setCreditLimit(Number(profile.credit_limit || 0));
-                setAvailableCredit(Math.max(0, Number(profile.credit_limit || 0) - Number(profile.credit_used || 0)));
+                await applyCreditAvailability(profile.id, profile);
               }
             }
             
@@ -335,20 +390,7 @@ const OrderCreationWizardComponent = ({
       // Set customer
       if (initialData.customer) {
         setSelectedCustomer(initialData.customer);
-        setHasCreditAccount(
-          hasActiveCreditAccount(
-            (initialData.customer as any)?.credit_limit,
-            (initialData.customer as any)?.credit_status
-          )
-        );
-        setCreditLimit(Number((initialData.customer as any)?.credit_limit || 0));
-        setAvailableCredit(
-          Math.max(
-            0,
-            Number((initialData.customer as any)?.credit_limit || 0) -
-              Number((initialData.customer as any)?.credit_used || 0)
-          )
-        );
+        await applyCreditAvailability(initialData.customer.id, initialData.customer);
         
         // Fetch profile shipping settings for pre-loaded customer
         if (initialData.customer.id) {
@@ -369,51 +411,16 @@ const OrderCreationWizardComponent = ({
                 auto_shipping_threshold: profileData.auto_shipping_threshold,
                 auto_shipping_amount: profileData.auto_shipping_amount,
               });
-              setHasCreditAccount(
-                hasActiveCreditAccount(
-                  profileData.credit_limit || (initialData.customer as any)?.credit_limit,
-                  profileData.credit_status || (initialData.customer as any)?.credit_status
-                )
-              );
-              const nextCreditLimit = Number(profileData.credit_limit || (initialData.customer as any)?.credit_limit || 0);
-              const nextCreditUsed = Number(profileData.credit_used || (initialData.customer as any)?.credit_used || 0);
-              setCreditLimit(nextCreditLimit);
-              setAvailableCredit(Math.max(0, nextCreditLimit - nextCreditUsed));
+              await applyCreditAvailability(initialData.customer.id, { ...(initialData.customer as any), ...profileData });
             } else {
               console.log("❌ No profile shipping settings found for pre-loaded customer:", initialData.customer.id);
               setProfileShippingSettings(null);
-              setHasCreditAccount(
-                hasActiveCreditAccount(
-                  (initialData.customer as any)?.credit_limit,
-                  (initialData.customer as any)?.credit_status
-                )
-              );
-              setCreditLimit(Number((initialData.customer as any)?.credit_limit || 0));
-              setAvailableCredit(
-                Math.max(
-                  0,
-                  Number((initialData.customer as any)?.credit_limit || 0) -
-                    Number((initialData.customer as any)?.credit_used || 0)
-                )
-              );
+              await applyCreditAvailability(initialData.customer.id, initialData.customer);
             }
           } catch (err) {
             console.error("Error fetching profile shipping settings for pre-loaded customer:", err);
             setProfileShippingSettings(null);
-            setHasCreditAccount(
-              hasActiveCreditAccount(
-                (initialData.customer as any)?.credit_limit,
-                (initialData.customer as any)?.credit_status
-              )
-            );
-            setCreditLimit(Number((initialData.customer as any)?.credit_limit || 0));
-            setAvailableCredit(
-              Math.max(
-                0,
-                Number((initialData.customer as any)?.credit_limit || 0) -
-                  Number((initialData.customer as any)?.credit_used || 0)
-              )
-            );
+            await applyCreditAvailability(initialData.customer.id, initialData.customer);
           }
         }
         
@@ -775,16 +782,7 @@ const OrderCreationWizardComponent = ({
     console.log("Customer ID:", customer.id);
     
     setSelectedCustomer(customer);
-    setHasCreditAccount(
-      hasActiveCreditAccount((customer as any)?.credit_limit, (customer as any)?.credit_status)
-    );
-    setCreditLimit(Number((customer as any)?.credit_limit || 0));
-    setAvailableCredit(
-      Math.max(
-        0,
-        Number((customer as any)?.credit_limit || 0) - Number((customer as any)?.credit_used || 0)
-      )
-    );
+    await applyCreditAvailability(customer.id, customer);
     
     // Fetch locations for this customer from locations table
     try {
@@ -836,43 +834,16 @@ const OrderCreationWizardComponent = ({
           auto_shipping_threshold: profileData.auto_shipping_threshold,
           auto_shipping_amount: profileData.auto_shipping_amount,
         });
-        setHasCreditAccount(
-          hasActiveCreditAccount(
-            profileData.credit_limit || (customer as any)?.credit_limit,
-            profileData.credit_status || (customer as any)?.credit_status
-          )
-        );
-        const nextCreditLimit = Number(profileData.credit_limit || (customer as any)?.credit_limit || 0);
-        const nextCreditUsed = Number(profileData.credit_used || (customer as any)?.credit_used || 0);
-        setCreditLimit(nextCreditLimit);
-        setAvailableCredit(Math.max(0, nextCreditLimit - nextCreditUsed));
+        await applyCreditAvailability(customer.id, { ...(customer as any), ...profileData });
       } else {
         console.log("❌ No profile shipping settings found for customer:", customer.id);
         setProfileShippingSettings(null);
-        setHasCreditAccount(
-          hasActiveCreditAccount((customer as any)?.credit_limit, (customer as any)?.credit_status)
-        );
-        setCreditLimit(Number((customer as any)?.credit_limit || 0));
-        setAvailableCredit(
-          Math.max(
-            0,
-            Number((customer as any)?.credit_limit || 0) - Number((customer as any)?.credit_used || 0)
-          )
-        );
+        await applyCreditAvailability(customer.id, customer);
       }
     } catch (err) {
       console.error("Error fetching profile shipping settings:", err);
       setProfileShippingSettings(null);
-      setHasCreditAccount(
-        hasActiveCreditAccount((customer as any)?.credit_limit, (customer as any)?.credit_status)
-      );
-      setCreditLimit(Number((customer as any)?.credit_limit || 0));
-      setAvailableCredit(
-        Math.max(
-          0,
-          Number((customer as any)?.credit_limit || 0) - Number((customer as any)?.credit_used || 0)
-        )
-      );
+      await applyCreditAvailability(customer.id, customer);
     }
     
     // Autofill billing address from customer data if available
@@ -928,7 +899,7 @@ const OrderCreationWizardComponent = ({
         scrollAfterStepChange();
       }, 300);
     }
-  }, [isPharmacyMode, userType, wizardState, scrollAfterStepChange]);
+  }, [applyCreditAvailability, isPharmacyMode, userType, wizardState, scrollAfterStepChange]);
 
   // Handle add new customer - memoized
   const handleAddNewCustomer = useCallback(() => {
