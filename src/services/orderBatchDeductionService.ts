@@ -5,9 +5,15 @@ type OrderSizeInput = {
   id?: string;
   quantity?: number;
   quantity_per_case?: number;
+  type?: string;
+  source?: string;
+  isManualItem?: boolean;
 };
 
 type OrderItemInput = {
+  productId?: string;
+  source?: string;
+  isManualItem?: boolean;
   sizes?: OrderSizeInput[];
 };
 
@@ -61,6 +67,13 @@ export async function deductOrderBatchesWithFallback(
   for (const item of items || []) {
     console.log('🔵 Processing item:', item);
     
+    const productId = String(item?.productId || "");
+    const isManualLine =
+      item?.isManualItem === true ||
+      item?.source === "sales_manual" ||
+      productId.startsWith("manual-order-") ||
+      productId.startsWith("manual-po-");
+
     if (!item.sizes || item.sizes.length === 0) {
       console.log('⚠️ Item has no sizes, skipping');
       continue;
@@ -69,9 +82,22 @@ export async function deductOrderBatchesWithFallback(
     for (const size of item.sizes || []) {
       const sizeId = size.id;
       const cases = Number(size.quantity || 0);
+      const isManualSize =
+        isManualLine ||
+        size?.isManualItem === true ||
+        size?.source === "sales_manual" ||
+        String(size?.type || "").toLowerCase() === "manual" ||
+        String(sizeId || "").startsWith("manual-order-") ||
+        String(sizeId || "").startsWith("manual-po-");
       
       console.log(`🔵 Processing size: ${sizeId}, cases: ${cases}`);
       
+      if (isManualSize) {
+        console.log(`Manual item size ${sizeId}, skipping batch deduction`);
+        skippedCount++;
+        continue;
+      }
+
       if (!sizeId || cases <= 0) {
         console.log(`⚠️ Invalid size data - sizeId: ${sizeId}, cases: ${cases}`);
         skippedCount++;

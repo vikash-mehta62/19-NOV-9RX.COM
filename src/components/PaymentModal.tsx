@@ -366,9 +366,26 @@ async function updateProductStock(orderItems: any[], orderId: string) {
   // Batch deduction is preferred, but legacy product_sizes fallback remains valid
   // for sizes that do not have active/allocatable batches.
   for (const item of items) {
+    const productId = String(item?.productId || "")
+    const isManualLine =
+      item?.isManualItem === true ||
+      item?.source === "sales_manual" ||
+      productId.startsWith("manual-order-") ||
+      productId.startsWith("manual-po-")
+
     if (item.sizes && item.sizes.length > 0) {
       for (const size of item.sizes) {
         if (!size?.id) continue
+        const sizeId = String(size.id || "")
+        const isManualSize =
+          isManualLine ||
+          size?.isManualItem === true ||
+          size?.source === "sales_manual" ||
+          String(size?.type || "").toLowerCase() === "manual" ||
+          sizeId.startsWith("manual-order-") ||
+          sizeId.startsWith("manual-po-")
+
+        if (isManualSize) continue
         if (result.batchManagedSizeIds.has(size.id)) {
           // Batch flow already adjusts product_sizes; skip to avoid double decrement.
           continue

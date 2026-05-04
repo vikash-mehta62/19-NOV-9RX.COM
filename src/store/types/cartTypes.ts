@@ -4,6 +4,8 @@ export interface CartItem {
   productId: string;
   name: string;
   sku?: string;
+  isManualItem?: boolean;
+  source?: "sales_manual" | "po_manual" | string;
   unitToggle?: boolean;
   price: number;
   image: string;

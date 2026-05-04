@@ -116,6 +116,18 @@ BEGIN
       SELECT value
       FROM jsonb_array_elements(COALESCE(v_item->'sizes', '[]'::jsonb))
     LOOP
+      IF COALESCE((v_item->>'isManualItem')::BOOLEAN, false)
+        OR v_item->>'source' = 'sales_manual'
+        OR v_size->>'source' = 'sales_manual'
+        OR lower(COALESCE(v_size->>'type', '')) = 'manual'
+        OR COALESCE(v_item->>'productId', '') LIKE 'manual-order-%'
+        OR COALESCE(v_item->>'productId', '') LIKE 'manual-po-%'
+        OR COALESCE(v_size->>'id', '') LIKE 'manual-order-%'
+        OR COALESCE(v_size->>'id', '') LIKE 'manual-po-%'
+      THEN
+        CONTINUE;
+      END IF;
+
       v_size_id := NULL;
       BEGIN
         IF NULLIF(v_size->>'id', '') IS NOT NULL THEN

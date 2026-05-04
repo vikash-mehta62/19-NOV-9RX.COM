@@ -100,6 +100,26 @@ const resolveUnitToggle = (
   products: Product[],
 ) => item.unitToggle ?? products.find((product) => product.id === item.productId)?.unitToggle;
 
+const isManualCartLine = (item: any) => {
+  const productId = String(item?.productId || "");
+  return (
+    item?.isManualItem === true ||
+    item?.source === "sales_manual" ||
+    productId.startsWith("manual-order-")
+  );
+};
+
+const isManualCartSize = (item: any, size: any) => {
+  const sizeId = String(size?.id || "");
+  return (
+    isManualCartLine(item) ||
+    size?.isManualItem === true ||
+    size?.source === "sales_manual" ||
+    String(size?.type || "").toLowerCase() === "manual" ||
+    sizeId.startsWith("manual-order-")
+  );
+};
+
 export interface ProductSelectionStepProps {
   onCartUpdate?: () => void;
   pricingProfileId?: string | null;
@@ -543,8 +563,11 @@ const ProductSelectionStepComponent = ({
   const handleQuantityChange = useCallback(async (productId: string, sizeId: string, newQuantity: number) => {
     if (newQuantity < 1) return;
 
+    const currentItem = cartItems.find((item) => item.productId === productId);
+    const currentSize = currentItem?.sizes?.find((size: any) => size.id === sizeId);
+    const isManualSize = isManualCartSize(currentItem, currentSize);
     const availableStock = getAvailableStock(sizeId);
-    if (availableStock <= 0) {
+    if (!isManualSize && availableStock <= 0) {
       toast({
         title: "Out of Stock",
         description: "This size is currently out of stock",
@@ -553,7 +576,7 @@ const ProductSelectionStepComponent = ({
       return;
     }
 
-    if (newQuantity > availableStock) {
+    if (!isManualSize && newQuantity > availableStock) {
       toast({
         title: "Stock limit reached",
         description: `Only ${availableStock} unit${availableStock === 1 ? "" : "s"} available for this size`,
@@ -575,7 +598,7 @@ const ProductSelectionStepComponent = ({
     } catch (error) {
       toast({ title: "Error", description: "Failed to update quantity", variant: "destructive" });
     }
-  }, [getAvailableStock, updateQuantity, onCartUpdate, toast]);
+  }, [cartItems, getAvailableStock, updateQuantity, onCartUpdate, toast]);
 
   const getQuantityKey = useCallback((productId: string, sizeId: string) => `${productId}:${sizeId}`, []);
 
@@ -972,14 +995,16 @@ const ProductSelectionStepComponent = ({
                                     }}
                                     className="h-10 w-20 min-w-[5rem] border-0 rounded-none px-1 text-center text-base font-semibold tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                   />
-                                  <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)} disabled={size.quantity >= getAvailableStock(size.id)}>
+                                  <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)} disabled={!isManualCartSize(item, size) && size.quantity >= getAvailableStock(size.id)}>
                                     <Plus className="w-4 h-4" />
                                   </Button>
                                 </div>
                               </div>
-                              <p className={`mt-2 text-center text-xs ${getAvailableStock(size.id) <= 0 ? "text-red-600" : "text-gray-500"}`}>
-                                {getAvailableStock(size.id) <= 0 ? "Out of Stock" : `${getAvailableStock(size.id)} available`}
-                              </p>
+                              {!isManualCartSize(item, size) && (
+                                <p className={`mt-2 text-center text-xs ${getAvailableStock(size.id) <= 0 ? "text-red-600" : "text-gray-500"}`}>
+                                  {getAvailableStock(size.id) <= 0 ? "Out of Stock" : `${getAvailableStock(size.id)} available`}
+                                </p>
+                              )}
                               <div className="mt-2 flex items-center justify-between gap-2">
                                 <span className="text-xs text-gray-500">Unit Price</span>
                                 <div className="flex items-center gap-1">
@@ -1049,14 +1074,16 @@ const ProductSelectionStepComponent = ({
                                     }}
                                     className="h-10 w-20 min-w-[5rem] border-0 rounded-none px-1 text-center text-base font-semibold tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                   />
-                                  <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)} disabled={size.quantity >= getAvailableStock(size.id)}>
+                                  <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)} disabled={!isManualCartSize(item, size) && size.quantity >= getAvailableStock(size.id)}>
                                     <Plus className="w-4 h-4" />
                                   </Button>
                                 </div>
                               </div>
-                              <p className={`mt-2 text-center text-xs ${getAvailableStock(size.id) <= 0 ? "text-red-600" : "text-gray-500"}`}>
-                                {getAvailableStock(size.id) <= 0 ? "Out of Stock" : `${getAvailableStock(size.id)} available`}
-                              </p>
+                              {!isManualCartSize(item, size) && (
+                                <p className={`mt-2 text-center text-xs ${getAvailableStock(size.id) <= 0 ? "text-red-600" : "text-gray-500"}`}>
+                                  {getAvailableStock(size.id) <= 0 ? "Out of Stock" : `${getAvailableStock(size.id)} available`}
+                                </p>
+                              )}
                               <div className="mt-2 flex items-center justify-between gap-2">
                                 <span className="text-xs text-gray-500">Unit Price</span>
                                 <div className="flex items-center gap-1">
@@ -1391,15 +1418,17 @@ const ProductSelectionStepComponent = ({
                                 size="sm" 
                                 className={cn("p-0 rounded-none hover:bg-gray-100", isLaptop ? "h-5 w-6" : "h-8 w-10")}
                                 onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)}
-                                disabled={size.quantity >= getAvailableStock(size.id)}
+                                disabled={!isManualCartSize(item, size) && size.quantity >= getAvailableStock(size.id)}
                               >
                                 <Plus className={cn(isLaptop ? "w-2.5 h-2.5" : "w-4 h-4")} />
                               </Button>
                             </div>
                           </div>
-                          <p className={cn("mt-1 text-center", getAvailableStock(size.id) <= 0 ? "text-red-600" : "text-gray-500", isLaptop ? "text-[9px]" : "text-xs")}>
-                            {getAvailableStock(size.id) <= 0 ? "Out of Stock" : `${getAvailableStock(size.id)} available`}
-                          </p>
+                          {!isManualCartSize(item, size) && (
+                            <p className={cn("mt-1 text-center", getAvailableStock(size.id) <= 0 ? "text-red-600" : "text-gray-500", isLaptop ? "text-[9px]" : "text-xs")}>
+                              {getAvailableStock(size.id) <= 0 ? "Out of Stock" : `${getAvailableStock(size.id)} available`}
+                            </p>
+                          )}
                           <div className={cn("mt-1 flex items-center justify-between gap-2", isLaptop ? "text-[9px]" : "text-xs")}>
                             <span className="text-gray-500">Unit Price</span>
                             <div className="flex items-center gap-1">

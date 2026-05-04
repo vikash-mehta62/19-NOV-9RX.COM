@@ -75,6 +75,8 @@ const buildManualCartItem = (values: ManualItemFormState): CartItem => {
     productId,
     name: resolvedName,
     sku: resolvedSku,
+    isManualItem: true,
+    source: "sales_manual",
     price: Number((quantity * unitPrice).toFixed(2)),
     image: "/placeholder.svg",
     description: resolvedDescription,
@@ -88,6 +90,8 @@ const buildManualCartItem = (values: ManualItemFormState): CartItem => {
         price: Number(unitPrice.toFixed(2)),
         quantity,
         type: "manual",
+        source: "sales_manual",
+        isManualItem: true,
         sku: resolvedSku,
         shipping_cost: shippingCost,
       },
@@ -184,7 +188,15 @@ const CustomProductForm = ({
           : [];
         form.setValue("items", [...existingItems, cartItem]);
       } else {
-        await addToCart(cartItem);
+        const added = await addToCart(cartItem);
+        if (!added) {
+          toast({
+            title: "Unable to add manual item",
+            description: "Manual sales items do not use inventory stock. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       onAdded?.(cartItem);

@@ -6,11 +6,16 @@ type CartSizeLike = {
   size_value?: string;
   size_unit?: string;
   quantity?: number;
+  type?: string;
+  source?: string;
+  isManualItem?: boolean;
 };
 
 type CartItemLike = {
   productId?: string;
   name?: string;
+  source?: string;
+  isManualItem?: boolean;
   sizes?: CartSizeLike[];
 };
 
@@ -52,11 +57,25 @@ const buildRequestedTotals = (cartItems: CartItemLike[]) => {
   const totals = new Map<string, StockValidationIssue>();
 
   for (const item of cartItems || []) {
+    const productId = String(item?.productId || "");
+    const isManualLine =
+      item?.isManualItem === true ||
+      item?.source === "sales_manual" ||
+      productId.startsWith("manual-order-") ||
+      productId.startsWith("manual-po-");
+
     for (const size of item.sizes || []) {
       const sizeId = String(size?.id || "").trim();
       const quantity = Number(size?.quantity || 0);
+      const isManualSize =
+        isManualLine ||
+        size?.isManualItem === true ||
+        size?.source === "sales_manual" ||
+        String(size?.type || "").toLowerCase() === "manual" ||
+        sizeId.startsWith("manual-order-") ||
+        sizeId.startsWith("manual-po-");
 
-      if (!sizeId || !(quantity > 0)) {
+      if (isManualSize || !sizeId || !(quantity > 0)) {
         continue;
       }
 
