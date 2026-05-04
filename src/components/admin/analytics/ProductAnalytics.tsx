@@ -14,6 +14,14 @@ interface ProductAnalyticsProps {
 }
 
 const COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isUuid = (value: unknown) => UUID_REGEX.test(String(value || ""));
+
+const isManualProductId = (value: unknown) => {
+  const productId = String(value || "");
+  return productId.startsWith("manual-order-") || productId.startsWith("manual-po-");
+};
 
 export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: ProductAnalyticsProps) {
   const [loading, setLoading] = useState(true);
@@ -185,8 +193,21 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
       console.log('🟢 PRODUCTS TAB - Items from JSON:', itemsFromJson.length);
       console.log('🟢 PRODUCTS TAB - Total items:', allOrderItems.length);
 
-      // Get unique product IDs
+      const orderLineMap = new Map<string, any>();
+      orders.forEach((order: any) => {
+        const orderItemsFromJson = Array.isArray(order.items) ? order.items : [];
+        orderItemsFromJson.forEach((orderLine: any) => {
+          const productId = orderLine.productId || orderLine.product_id;
+          if (productId && !orderLineMap.has(productId)) {
+            orderLineMap.set(productId, orderLine);
+          }
+        });
+      });
+
+      // Get unique product IDs. Manual sales lines use synthetic IDs and must not be sent to UUID catalog queries.
       const productIds = [...new Set(allOrderItems?.map(i => i.product_id).filter(Boolean))];
+      const catalogProductIds = productIds.filter(isUuid);
+      const manualProductIds = productIds.filter((id) => !isUuid(id));
 
       if (productIds.length === 0) {
         setStats({
@@ -201,18 +222,35 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
       }
 
       // Fetch products separately
-      const { data: products, error: productsError } = await supabase
-        .from('products')
-        .select('id, name, category, subcategory, unitToggle, product_sizes(id, size_name, size_value, size_unit, sku, quantity_per_case)')
-        .in('id', productIds);
+      let products: any[] = [];
+      if (catalogProductIds.length > 0) {
+        const { data: productRows, error: productsError } = await supabase
+          .from('products')
+          .select('id, name, category, subcategory, unitToggle, product_sizes(id, size_name, size_value, size_unit, sku, quantity_per_case)')
+          .in('id', catalogProductIds);
 
-      if (productsError) {
-        console.error('Error fetching products:', productsError);
-        throw productsError;
+        if (productsError) {
+          console.error('Error fetching products:', productsError);
+          throw productsError;
+        }
+
+        products = productRows || [];
       }
 
+      const manualProducts = manualProductIds.map((productId) => {
+        const orderLine = orderLineMap.get(productId);
+        return {
+          id: productId,
+          name: orderLine?.name || orderLine?.productName || "Manual Item",
+          category: "Manual Items",
+          subcategory: isManualProductId(productId) ? "Sales Order Manual Item" : "Manual Item",
+          unitToggle: false,
+          product_sizes: [],
+        };
+      });
+
       // Create product lookup map
-      const productMap = new Map(products?.map(p => [p.id, p]) || []);
+      const productMap = new Map([...products, ...manualProducts].map(p => [p.id, p]) || []);
       const orderMap = new Map(orders.map((order) => [order.id, order]));
 
       const orderDerivedSizeMap = new Map<string, any[]>();
@@ -291,21 +329,21 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
       let totalRevenue = 0;
       let totalUnits = 0; 
 
-      // Calculate total units from filtered items
-      allOrderItems?.forEach((item: any) => {
-        totalUnits += item.quantity;
-      });
-
       console.log('🟢 PRODUCTS TAB - Final Revenue (from items):', totalRevenue, 'Total Units:', totalUnits, 'Orders:', filteredOrders.length);
 
       // Aggregate product data - use actual item prices
       allOrderItems?.forEach((item: any) => {
         const product = productMap.get(item.product_id);
         if (!product) return;
+        const isManualItem = !isUuid(product.id);
 
         // Calculate actual revenue from unit_price * quantity
         const itemRevenue = (Number(item.unit_price) || 0) * (Number(item.quantity) || 0);
         totalRevenue += itemRevenue;
+
+        if (isManualItem) return;
+
+        totalUnits += Number(item.quantity) || 0;
 
         // Product aggregation
         const existing = productAggMap.get(product.id) || {

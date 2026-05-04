@@ -8,6 +8,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const canProcessEmailQueue = () =>
+  process.env.NODE_ENV === "production" || process.env.EMAIL_QUEUE_ENABLED === "true";
+
 // Helper for variable replacement
 const replaceTemplateVariables = (htmlContent, variables) => {
   if (!htmlContent) return "";
@@ -72,6 +75,15 @@ async function syncCampaignDeliveryStatus(campaignId) {
 exports.processQueue = async (req, res) => {
   const results = { processed: 0, sent: 0, failed: 0, errors: [] };
   const limit = parseInt(req.query.limit) || 50;
+
+  if (!canProcessEmailQueue()) {
+    return res.json({
+      success: true,
+      skipped: true,
+      message: `Email queue processing disabled in NODE_ENV=${process.env.NODE_ENV || "undefined"}`,
+      ...results,
+    });
+  }
 
   try {
     const now = new Date().toISOString();

@@ -65,6 +65,9 @@ const CONFIG = {
   duplicateCheckHours: 24, // Don't send same email type to same user within 24 hours
 };
 
+const canProcessEmailQueue = () =>
+  process.env.NODE_ENV === "production" || process.env.EMAIL_QUEUE_ENABLED === "true";
+
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
@@ -488,6 +491,11 @@ async function isDuplicateEmail(email, automationId, triggerType, userId = null)
 // ============================================
 async function processEmailQueue() {
   const results = { processed: 0, sent: 0, failed: 0 };
+
+  if (!canProcessEmailQueue()) {
+    log("⏸️", `Email queue processing skipped in NODE_ENV=${process.env.NODE_ENV || "undefined"}`);
+    return { ...results, skipped: true };
+  }
 
   try {
     const now = new Date().toISOString();
@@ -2376,6 +2384,11 @@ async function checkCustomerDocumentReminders() {
 // MAIN CRON STARTER (UPDATED)
 // ============================================
 function startEmailCron() {
+  if (!canProcessEmailQueue()) {
+    log("⏸️", `Email Cron Service disabled in NODE_ENV=${process.env.NODE_ENV || "undefined"}. Set EMAIL_QUEUE_ENABLED=true to enable locally.`);
+    return;
+  }
+
   log("🚀", "========================================");
   log("🚀", "Email Cron Service Starting...");
   log("📋", "Configuration:", {
