@@ -156,9 +156,14 @@ function generateHtml(rows: EmailRow[], globalStyle: any): string {
           let blockHtml = "";
           
           switch (type) {
-            case "header": blockHtml = `<div style="background:${content.bgColor || "#10b981"};padding:${content.padding || 30}px;text-align:center;"><h1 style="color:${content.textColor || "#ffffff"};margin:0;font-size:${content.fontSize || 28}px;font-weight:bold;">${content.text || ""}</h1></div>`; break;
+            case "header": blockHtml = `<div style="background:${content.bgColor || "#10b981"};padding:${content.padding || 30}px;text-align:center;"><h1 style="color:${content.textColor || "#ffffff"};margin:0;font-size:${content.fontSize || 28}px;font-weight:bold;white-space:pre-line;">${(content.text || "").replace(/\n/g, "<br>")}</h1></div>`; break;
             case "empty": blockHtml = ""; break;
-            case "text": blockHtml = `<div style="padding:20px 30px;"><p style="color:${content.color || "#374151"};font-size:${content.fontSize || 16}px;text-align:${content.align || "left"};margin:0;line-height:1.7;white-space:pre-wrap;">${(content.text || "").replace(/\n/g, "<br>")}</p></div>`; break;
+            case "text": {
+              const paddingY = Number(content.paddingY ?? 20);
+              const paddingX = Number(content.paddingX ?? 30);
+              blockHtml = `<div style="padding:${paddingY}px ${paddingX}px;"><p style="color:${content.color || "#374151"};font-size:${content.fontSize || 16}px;text-align:${content.align || "left"};margin:0;line-height:1.7;white-space:pre-wrap;">${(content.text || "").replace(/\n/g, "<br>")}</p></div>`;
+              break;
+            }
             case "button": const bp = content.size === "large" ? "16px 36px" : content.size === "small" ? "10px 20px" : "14px 28px"; blockHtml = `<div style="text-align:${content.align || "center"};padding:20px 30px;"><a href="${content.url || "#"}" style="background:${content.bgColor || "#10b981"};color:${content.textColor || "#ffffff"};padding:${bp};text-decoration:none;border-radius:${content.radius || 8}px;font-weight:600;display:inline-block;" class="email-button">${content.text || ""}</a></div>`; break;
             case "image": blockHtml = content.url ? `<div style="text-align:${content.align || "center"};padding:20px 30px;"><img src="${content.url}" alt="${content.alt || ""}" style="max-width:${content.width || 100}%;height:auto;border-radius:8px;" class="email-image" /></div>` : ""; break;
             case "divider": blockHtml = `<div style="padding:15px 30px;"><hr style="border:none;border-top:${content.thickness || 1}px ${content.style || "solid"} ${content.color || "#e5e7eb"};margin:0;" /></div>`; break;
@@ -171,7 +176,7 @@ function generateHtml(rows: EmailRow[], globalStyle: any): string {
                   <!-- Cart items will be dynamically inserted here -->
                   {{cart_items}}
                   <div style="border-top:2px solid #e5e7eb;margin-top:16px;padding-top:16px;text-align:right;">
-                    <p style="margin:0;color:#1f2937;font-size:18px;font-weight:bold;">Total: ${{cart_total}}</p>
+                    <p style="margin:0;color:#1f2937;font-size:18px;font-weight:bold;">Total: \${{cart_total}}</p>
                   </div>
                 </div>
                 <div style="text-align:center;">
@@ -1125,6 +1130,26 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
           return null;
         }
 
+        // Detect abandoned-cart dynamic block before header detection.
+        // This section often contains <h3> so header detection must not run first.
+        const hasCartVariables =
+          text.includes('{{cart_items}}') ||
+          text.includes('{{cart_total}}') ||
+          text.includes('{{item_count}}');
+        const hasCartKeywords =
+          /your cart|cart items|complete your order/i.test(text);
+        if (hasCartVariables || hasCartKeywords) {
+          const actionLink = el.querySelector('a')?.textContent?.trim();
+          return {
+            id: `block-${getUniqueId()}`,
+            type: 'cart_items',
+            content: {
+              ...blockDefaults.cart_items,
+              buttonText: actionLink || blockDefaults.cart_items.buttonText,
+            }
+          };
+        }
+
         // Check for Header - look for div with h1/h2 inside or h1-h6 directly
         const headerEl = el.querySelector('h1, h2, h3, h4, h5, h6');
         if (headerEl || el.tagName.match(/^H[1-6]$/)) {
@@ -1147,7 +1172,17 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
 
         // Check for Button (A tag with background)
         const buttonEl = el.tagName === 'A' ? el : el.querySelector('a.email-button, a[style*="background"]');
-        if (buttonEl && (buttonEl.getAttribute('style')?.includes('background') || buttonEl.classList.contains('email-button'))) {
+        const isDirectButtonElement = el.tagName === 'A';
+        const isCompactCtaContainer =
+          !isDirectButtonElement &&
+          el.tagName === 'DIV' &&
+          el.children.length <= 2 &&
+          !!el.querySelector('a');
+        if (
+          buttonEl &&
+          (buttonEl.getAttribute('style')?.includes('background') || buttonEl.classList.contains('email-button')) &&
+          (isDirectButtonElement || isCompactCtaContainer)
+        ) {
           return {
             id: `block-${getUniqueId()}`,
             type: 'button',
@@ -1187,9 +1222,19 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
 
         // Check for Coupon
         if ((style.includes('border') && style.includes('dashed')) || 
-            (text.includes('% OFF') || text.includes('Code:'))) {
-          const discount = text.match(/(\d+%?\s*OFF)/i)?.[1] || 'Special Offer';
-          const code = text.match(/Code:\s*([A-Z0-9]+)/i)?.[1] || 'SAVE';
+            (text.includes('% OFF') || text.includes('Code:') || text.includes('{{promo_code}}'))) {
+          const hasPromoCodePlaceholder = /\{\{\s*promo_code\s*\}\}/i.test(text);
+          const discount = hasPromoCodePlaceholder
+            ? 'Use Code:'
+            : (text.match(/(\d+%?\s*OFF)/i)?.[1] || 'Special Offer');
+          const code =
+            text.match(/\{\{\s*promo_code\s*\}\}/i)?.[0] ||
+            text.match(/Code:\s*([A-Z0-9_-]+)/i)?.[1] ||
+            'SAVE';
+          const expiry =
+            text.match(/\{\{\s*expiry_date\s*\}\}/i)?.[0]
+              ? `Valid until ${text.match(/\{\{\s*expiry_date\s*\}\}/i)?.[0]}`
+              : '';
           return {
             id: `block-${getUniqueId()}`,
             type: 'coupon',
@@ -1197,6 +1242,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
               ...blockDefaults.coupon,
               discount: discount,
               code: code,
+              description: expiry || blockDefaults.coupon.description,
               bgColor: findBackgroundColor(el) || '#fef3c7'
             }
           };
@@ -1208,13 +1254,16 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
           const textEl = pEl || el;
           const textContent = textEl.textContent?.trim() || '';
           if (textContent && textContent.length > 0) {
+            const compactPadding = textEl.tagName === 'P';
             return {
               id: `block-${getUniqueId()}`,
               type: 'text',
               content: {
                 ...blockDefaults.text,
                 text: textContent,
-                color: findTextColor(textEl) || '#374151'
+                color: findTextColor(textEl) || '#374151',
+                paddingY: compactPadding ? "6" : "20",
+                paddingX: "30",
               }
             };
           }
@@ -1241,10 +1290,136 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
       console.log('📊 Found email row tables:', emailRowTables.length);
       
       if (emailRowTables.length > 0) {
+        const appendBlockAsFullRow = (block: EmailBlock) => {
+          const rowId = getUniqueId();
+          newRows.push({
+            id: `row-${rowId}`,
+            columns: [{
+              id: `col-${rowId}`,
+              width: 100,
+              block,
+            }],
+          });
+        };
+
+        const getCellSections = (cell: Element): Element[] => {
+          let sections = Array.from(cell.children).filter((child) => {
+            const tag = child.tagName;
+            return !["SCRIPT", "STYLE", "META"].includes(tag);
+          });
+
+          // Unwrap common single wrapper containers to reach actual sections.
+          if (sections.length === 1) {
+            const wrapper = sections[0];
+            const wrapperChildren = Array.from(wrapper.children).filter((child) => {
+              const tag = child.tagName;
+              return !["SCRIPT", "STYLE", "META"].includes(tag);
+            });
+            if (wrapperChildren.length > 1) {
+              sections = wrapperChildren;
+            }
+          }
+
+          return sections;
+        };
+
         // Process each table as a row
         emailRowTables.forEach((table, tableIdx) => {
           const cells = Array.from(table.querySelectorAll(':scope > tbody > tr > td, :scope > tr > td'));
           console.log(`  Table ${tableIdx}: ${cells.length} cells`);
+
+          // Some imported templates keep multiple sections inside a single TD.
+          // Convert each top-level child section into its own row so Edit view matches Preview.
+          if (cells.length === 1) {
+            const singleCell = cells[0];
+            let sectionNodes = Array.from(singleCell.children).filter((child) => {
+              const tag = child.tagName;
+              return !["SCRIPT", "STYLE", "META"].includes(tag);
+            });
+
+            // If everything is wrapped in one container, split by that container's direct children.
+            if (sectionNodes.length === 1) {
+              const wrapperChildren = Array.from(sectionNodes[0].children).filter((child) => {
+                const tag = child.tagName;
+                return !["SCRIPT", "STYLE", "META"].includes(tag);
+              });
+              if (wrapperChildren.length > 1) {
+                sectionNodes = wrapperChildren;
+              }
+            }
+
+            if (sectionNodes.length > 1) {
+              const sectionBlocks: EmailBlock[] = [];
+              sectionNodes.forEach((sectionEl, sectionIdx) => {
+                console.log(`    Single-cell section ${sectionIdx}:`, sectionEl.tagName, sectionEl.textContent?.substring(0, 50));
+                const block = parseElementToBlock(sectionEl);
+                if (!block) return;
+                sectionBlocks.push(block);
+              });
+
+              // Fallback enrich for promo-style templates where body/coupon content is nested
+              // and basic section parsing only captures a subset.
+              if (sectionBlocks.length <= 3) {
+                const hasTextBlock = sectionBlocks.some((b) => b.type === "text");
+                const hasCouponBlock = sectionBlocks.some((b) => b.type === "coupon");
+
+                if (!hasTextBlock) {
+                  const bodyLines = Array.from(singleCell.querySelectorAll("p, div"))
+                    .map((el) => (el.textContent || "").trim())
+                    .filter((line) =>
+                      line.length > 0 &&
+                      !/9RX LLC|Phone:|Email:|Website:/i.test(line) &&
+                      (
+                        line.includes("{{user_name}}") ||
+                        line.includes("{{promo_description}}") ||
+                        line.includes("{{featured_products}}") ||
+                        /^Hi\s*\{\{.*\}\}/i.test(line)
+                      )
+                    );
+
+                  if (bodyLines.length > 0) {
+                    sectionBlocks.push({
+                      id: `block-${getUniqueId()}`,
+                      type: "text",
+                      content: {
+                        ...blockDefaults.text,
+                        text: bodyLines.join("\n\n"),
+                        paddingY: "6",
+                        paddingX: "30",
+                      },
+                    });
+                  }
+                }
+
+                if (!hasCouponBlock) {
+                  const couponEl = Array.from(singleCell.querySelectorAll("div, p, td"))
+                    .find((el) => {
+                      const t = (el.textContent || "").trim();
+                      return t.includes("{{promo_code}}") || /use code|valid until/i.test(t);
+                    });
+
+                  if (couponEl) {
+                    const couponBlock = parseElementToBlock(couponEl);
+                    if (couponBlock && couponBlock.type === "coupon") {
+                      sectionBlocks.push(couponBlock);
+                    }
+                  }
+                }
+
+                // Ensure discount placeholder visible near header in edit mode
+                const headerBlock = sectionBlocks.find((b) => b.type === "header");
+                if (headerBlock && typeof headerBlock.content?.text === "string" && !headerBlock.content.text.includes("{{discount_text}}")) {
+                  const hasDiscount = (singleCell.textContent || "").includes("{{discount_text}}");
+                  if (hasDiscount) {
+                    headerBlock.content.text = `${headerBlock.content.text}\n{{discount_text}}`;
+                  }
+                }
+              }
+
+              sectionBlocks.forEach((block) => appendBlockAsFullRow(block));
+              return;
+            }
+          }
           
           const columns: any[] = [];
           
@@ -1252,6 +1427,19 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
             const widthAttr = cell.getAttribute('width');
             const styleWidth = cell.getAttribute('style')?.match(/width:\s*(\d+)/)?.[1];
             const width = widthAttr ? parseInt(widthAttr) : (styleWidth ? parseInt(styleWidth) : Math.floor(100 / cells.length));
+
+            const cellSections = getCellSections(cell);
+            if (cells.length === 1 && cellSections.length > 1) {
+              console.log(`    Cell ${cellIdx}: detected ${cellSections.length} sections in single-column layout`);
+              cellSections.forEach((sectionEl, sectionIdx) => {
+                console.log(`      Section ${sectionIdx}:`, sectionEl.tagName, sectionEl.textContent?.substring(0, 60));
+                const sectionBlock = parseElementToBlock(sectionEl);
+                if (sectionBlock) {
+                  appendBlockAsFullRow(sectionBlock);
+                }
+              });
+              return;
+            }
             
             // Find the content div inside the cell
             const contentDiv = cell.querySelector('div') || cell;
@@ -1288,7 +1476,25 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
           const el = node as Element;
           
           if (['SCRIPT', 'STYLE', 'META', 'HEAD', 'TITLE'].includes(el.tagName)) return;
-          
+
+          const childElements = Array.from(el.children).filter((child) =>
+            !['SCRIPT', 'STYLE', 'META', 'HEAD', 'TITLE'].includes(child.tagName)
+          );
+
+          // For large wrappers (body/content containers), recurse children first.
+          // This prevents parent-level "button" detection from swallowing full sections.
+          const isLikelyContainer =
+            ['BODY', 'DIV', 'TD', 'TABLE', 'TR', 'TBODY'].includes(el.tagName) &&
+            childElements.length > 1;
+
+          if (isLikelyContainer) {
+            const before = newRows.length;
+            childElements.forEach((child) => processNode(child));
+            if (newRows.length > before) {
+              return;
+            }
+          }
+
           const block = parseElementToBlock(el);
           if (block) {
             const rowId = getUniqueId();
@@ -1302,16 +1508,115 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
             });
             return;
           }
-          
-          // Recurse for containers
-          Array.from(el.children).forEach(child => processNode(child));
+
+          childElements.forEach((child) => processNode(child));
         };
         
         Array.from(doc.body.children).forEach(child => processNode(child));
       }
       
+      // Deterministic recovery for promo-style templates:
+      // If source HTML contains known placeholders but conversion missed corresponding blocks,
+      // force-add missing blocks so Edit output matches Preview content.
+      const sourceHtml = htmlToConvert || '';
+      const hasPromoBodyPlaceholders =
+        sourceHtml.includes('{{promo_description}}') ||
+        sourceHtml.includes('{{featured_products}}') ||
+        sourceHtml.includes('{{user_name}}');
+      const hasPromoCouponPlaceholders =
+        sourceHtml.includes('{{promo_code}}') || sourceHtml.includes('{{expiry_date}}');
+
+      const footerIndexExisting = newRows.findIndex((r) => r.columns.some((c) => c.block.type === 'footer'));
+      const insertBeforeFooter = footerIndexExisting >= 0 ? footerIndexExisting : newRows.length;
+
+      const hasTextBlockAlready = newRows.some((r) => r.columns.some((c) => c.block.type === 'text'));
+      if (hasPromoBodyPlaceholders && !hasTextBlockAlready) {
+        const bodyLines: string[] = [];
+        if (sourceHtml.includes('{{user_name}}')) bodyLines.push('Hi {{user_name}},');
+        if (sourceHtml.includes('{{promo_description}}')) bodyLines.push('{{promo_description}}');
+        if (sourceHtml.includes('{{featured_products}}')) bodyLines.push('{{featured_products}}');
+
+        if (bodyLines.length > 0) {
+          const textId = getUniqueId();
+          newRows.splice(insertBeforeFooter, 0, {
+            id: `row-${textId}`,
+            columns: [{
+              id: `col-${textId}`,
+              width: 100,
+              block: {
+                id: `block-${textId}`,
+                type: 'text',
+                content: {
+                  ...blockDefaults.text,
+                  text: bodyLines.join('\n\n'),
+                  paddingY: "6",
+                  paddingX: "30",
+                },
+              },
+            }],
+          });
+        }
+      }
+
+      const hasCouponBlockAlready = newRows.some((r) => r.columns.some((c) => c.block.type === 'coupon'));
+      if (hasPromoCouponPlaceholders && !hasCouponBlockAlready) {
+        const couponId = getUniqueId();
+        newRows.splice(insertBeforeFooter + 1, 0, {
+          id: `row-${couponId}`,
+          columns: [{
+            id: `col-${couponId}`,
+            width: 100,
+            block: {
+              id: `block-${couponId}`,
+              type: 'coupon',
+              content: {
+                ...blockDefaults.coupon,
+                discount: 'Use Code:',
+                code: '{{promo_code}}',
+                description: sourceHtml.includes('{{expiry_date}}') ? 'Valid until {{expiry_date}}' : (blockDefaults.coupon.description || ''),
+              },
+            },
+          }],
+        });
+      }
+
       console.log('📦 Blocks created:', newRows.length);
       
+      // Normalize accidental extra rows created during HTML conversion.
+      // 1) Drop empty text rows
+      // 2) Merge standalone discount placeholder row into previous header row
+      for (let i = 0; i < newRows.length; i++) {
+        const row = newRows[i];
+        if (row.columns.length !== 1) continue;
+        const block = row.columns[0].block;
+
+        if (block.type === 'text') {
+          const rawText = String(block.content?.text || '').replace(/\u00a0/g, ' ').trim();
+          if (!rawText) {
+            newRows.splice(i, 1);
+            i--;
+            continue;
+          }
+
+          const isDiscountOnly = /^\{\{\s*discount_text\s*\}\}$/i.test(rawText);
+          if (isDiscountOnly && i > 0) {
+            const prev = newRows[i - 1];
+            if (prev.columns.length === 1 && prev.columns[0].block.type === 'header') {
+              const prevText = String(prev.columns[0].block.content?.text || '').trim();
+              if (!prevText.includes('{{discount_text}}')) {
+                prev.columns[0].block.content = {
+                  ...prev.columns[0].block.content,
+                  text: `${prevText}\n{{discount_text}}`,
+                };
+              }
+              newRows.splice(i, 1);
+              i--;
+              continue;
+            }
+          }
+        }
+      }
+
       // Always add footer at the end
       const footerUniqueId = getUniqueId();
       newRows.push({
@@ -2548,8 +2853,8 @@ function BlockPreview({ block, onReplace }: { block: EmailBlock, onReplace?: (ty
             </div>
         </div>
     );
-    case "header": return <div className="block-preview-smooth" style={{ background: content.bgColor || "#10b981", padding: `${content.padding || 30}px`, textAlign: "center" }}><h1 style={{ color: content.textColor || "#ffffff", margin: 0, fontSize: `${content.fontSize || 28}px`, fontWeight: "bold" }}>{content.text || "Header"}</h1></div>;
-    case "text": return <div className="block-preview-smooth" style={{ padding: "20px 30px" }}><p style={{ color: content.color || "#374151", fontSize: `${content.fontSize || 16}px`, textAlign: (content.align || "left") as any, margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{content.text || "Text content"}</p></div>;
+    case "header": return <div className="block-preview-smooth" style={{ background: content.bgColor || "#10b981", padding: `${content.padding || 30}px`, textAlign: "center" }}><h1 style={{ color: content.textColor || "#ffffff", margin: 0, fontSize: `${content.fontSize || 28}px`, fontWeight: "bold", whiteSpace: "pre-line" }}>{content.text || "Header"}</h1></div>;
+    case "text": return <div className="block-preview-smooth" style={{ padding: `${Number(content.paddingY ?? 20)}px ${Number(content.paddingX ?? 30)}px` }}><p style={{ color: content.color || "#374151", fontSize: `${content.fontSize || 16}px`, textAlign: (content.align || "left") as any, margin: 0, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{content.text || "Text content"}</p></div>;
     case "button": const btnPadding = content.size === "large" ? "16px 36px" : content.size === "small" ? "10px 20px" : "14px 28px"; return <div className="block-preview-smooth" style={{ textAlign: (content.align || "center") as any, padding: "20px 30px" }}><span style={{ background: content.bgColor || "#10b981", color: content.textColor || "#ffffff", padding: btnPadding, borderRadius: `${content.radius || 8}px`, fontWeight: "600", display: "inline-block", fontSize: content.size === "large" ? "18px" : "16px" }}>{content.text || "Button"}</span></div>;
     case "image": return <div className="block-preview-smooth" style={{ textAlign: (content.align || "center") as any, padding: "20px 30px" }}>
       {content.url && content.url.trim() ? (

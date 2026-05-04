@@ -327,6 +327,13 @@ const profileID =
           .single();
 
         const originalTotal = oldOrderData?.total_amount || 0;
+        const rawPaidAmount = Number(oldOrderData?.paid_amount || 0);
+        const paidAmountForAdjustment =
+          rawPaidAmount > 0
+            ? rawPaidAmount
+            : oldOrderData?.payment_status === "paid"
+              ? Number(originalTotal)
+              : 0;
         const newTotal = orderData.total;
         const differenceAmount = Number((newTotal - originalTotal).toFixed(2));
 
@@ -364,7 +371,7 @@ const profileID =
             customerEmail,
             originalAmount: originalTotal,
             newAmount: newTotal,
-            paidAmount: Number(oldOrderData?.paid_amount || 0),
+            paidAmount: paidAmountForAdjustment,
             hasCredit,
             availableCredit,
             creditMemoBalance,
