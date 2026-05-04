@@ -1021,7 +1021,7 @@ export function OrdersList({
               >
                 <div className="flex flex-col items-center justify-center gap-1">
                   <span className="font-semibold text-gray-900">
-                    {order.customerInfo?.name || "N/A"}
+                    {getCustomerName(order)}
                   </span>
                   {poIs && (
                     <span className="text-xs text-slate-500">

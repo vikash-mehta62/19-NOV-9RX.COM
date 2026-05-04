@@ -73,8 +73,7 @@ setOrders([])
           { count: "exact" }
         )
         .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .range((page - 1) * limit, page * limit - 1);
+        .order("created_at", { ascending: false });
 
       if (role === "pharmacy") {
         query = query.eq("profile_id", session.user.id);
@@ -110,28 +109,7 @@ setOrders([])
             ? statusFilter2
             : [statusFilter2];
 
-      if (poIs === true && selectedStatuses.length === 1) {
-        switch (selectedStatuses[0]) {
-          case "pending":
-            query = query.eq("poApproved", false).eq("poRejected", false);
-            break;
-          case "approved":
-            query = query.eq("poApproved", true).eq("poRejected", false).eq("status", "approved");
-            break;
-          case "partially_received":
-            query = query.eq("status", "partially_received");
-            break;
-          case "received":
-            query = query.eq("status", "received");
-            break;
-          case "closed":
-            query = query.eq("status", "closed");
-            break;
-          case "rejected":
-            query = query.eq("poRejected", true);
-            break;
-        }
-      } else if (!poIs && selectedStatuses.length > 0) {
+      if (!poIs && selectedStatuses.length > 0) {
         const nonVoidedStatuses = selectedStatuses.filter((status) => status !== "voided");
         const includesVoided = selectedStatuses.includes("voided");
         const orFilters: string[] = [];
@@ -170,6 +148,11 @@ setOrders([])
           .gte("created_at", dateRange.from.toISOString())
           .lte("created_at", dateRange.to.toISOString());
       }
+
+      query = poIs === true
+        ? query.range(0, 9999)
+        : query.range((page - 1) * limit, page * limit - 1);
+
       const { data, error, count } = await query;
 
       // console.log(data);

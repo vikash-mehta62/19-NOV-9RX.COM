@@ -55,6 +55,7 @@ import { RootState } from "@/store/store";
 import { CreatePurchaseOrderDialog } from "./CreatePurchaseOrderDialog";
 import { getPoWorkflowState } from "./utils/poWorkflow";
 import { shouldHideAdminFinancials } from "@/lib/adminAccess";
+import { getCustomerName } from "./utils/customerUtils";
 
 const exportToCSV = (orders: OrderFormValues[]) => {
   if (!orders || orders.length === 0) {
@@ -455,6 +456,10 @@ export const OrdersContainer = ({
     }
   }, [dateRange, filterStorageKey, searchQuery, statusFilter, statusFilter2]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [dateRange, poIs, searchQuery, setPage, statusFilter, statusFilter2]);
+
   // Filter orders for history cards
   const filteredHistoryOrders = useMemo(() => {
     return orders.filter(order => {
@@ -503,9 +508,9 @@ export const OrdersContainer = ({
 
       switch (sortField) {
         case "customer":
-          const nameA = (a.customerInfo?.name || "").toLowerCase();
-          const nameB = (b.customerInfo?.name || "").toLowerCase();
-          comparison = nameA.localeCompare(nameB);
+          comparison = getCustomerName(a)
+            .toLowerCase()
+            .localeCompare(getCustomerName(b).toLowerCase());
           break;
         case "date":
           comparison = new Date(a.date || a.created_at).getTime() - new Date(b.date || b.created_at).getTime();
@@ -528,6 +533,15 @@ export const OrdersContainer = ({
       return sortDirection === "asc" ? comparison : -comparison;
     });
   }, [filteredOrders, sortField, sortDirection]);
+
+  const paginatedOrders = useMemo(() => {
+    if (!poIs || limit >= 10000) return sortedOrders;
+
+    const start = (page - 1) * limit;
+    return sortedOrders.slice(start, start + limit);
+  }, [limit, page, poIs, sortedOrders]);
+
+  const displayTotalOrders = poIs ? sortedOrders.length : totalOrders;
 
   const poStats = useMemo(() => {
     if (!poIs) return null;
@@ -1019,7 +1033,7 @@ export const OrdersContainer = ({
       )}
 
       <OrdersList
-        orders={sortedOrders}
+        orders={paginatedOrders}
         onOrderClick={handleOrderClick}
         selectedOrder={selectedOrder}
         isEditing={isEditing}
@@ -1048,7 +1062,7 @@ export const OrdersContainer = ({
       />
 
       <Pagination
-        totalOrders={totalOrders}
+        totalOrders={displayTotalOrders}
         page={page}
         setPage={setPage}
         limit={limit}

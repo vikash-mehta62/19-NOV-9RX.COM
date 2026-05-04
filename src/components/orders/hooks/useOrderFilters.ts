@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { OrderFormValues } from "../schemas/orderSchema";
 import { matchesPoWorkflowFilter } from "../utils/poWorkflow";
+import { getCustomerName } from "../utils/customerUtils";
 
 export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -75,11 +76,13 @@ export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) =
         state = "",
         zip_code = "",
       } = address;
+      const displayName = getCustomerName(order);
 
       return (
         id.toLowerCase().includes(query) ||
         order_number?.toLowerCase().includes(query) ||
         purchase_number_external?.toLowerCase().includes(query) ||
+        displayName.toLowerCase().includes(query) ||
         name.toLowerCase().includes(query) ||
         email.toLowerCase().includes(query) ||
         phone.toLowerCase().includes(query) ||
