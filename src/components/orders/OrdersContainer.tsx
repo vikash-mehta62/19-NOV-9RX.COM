@@ -383,10 +383,11 @@ export const OrdersContainer = ({
   );
 
   useEffect(() => {
-    const orderIdFromUrl = searchParams.get("orderId") || "";
-    const statusFromUrl = searchParams.get("status") || "all";
-    const searchFromUrl = searchParams.get("search") || "";
-    const paymentStatusFromUrl = searchParams.get("paymentStatus") || "all";
+    const currentSearchParams = new URLSearchParams(location.search);
+    const orderIdFromUrl = currentSearchParams.get("orderId") || "";
+    const statusFromUrl = currentSearchParams.get("status") || "all";
+    const searchFromUrl = currentSearchParams.get("search") || "";
+    const paymentStatusFromUrl = currentSearchParams.get("paymentStatus") || "all";
     const parsedStatuses: string | string[] =
       statusFromUrl === "all"
         ? "all"
@@ -422,13 +423,12 @@ export const OrdersContainer = ({
       filtersHydratedRef.current = true;
     }
 
-    if ((orderIdFromUrl || statusFromUrl !== "all" || searchFromUrl || paymentStatusFromUrl !== "all") && page !== 1) {
+    if (orderIdFromUrl || statusFromUrl !== "all" || searchFromUrl || paymentStatusFromUrl !== "all") {
       setPage(1);
     }
   }, [
     filterStorageKey,
-    page,
-    searchParams,
+    location.search,
     setPage,
     setSearchQuery,
     setStatusFilter,

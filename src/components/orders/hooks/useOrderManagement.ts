@@ -5,6 +5,52 @@ import { supabase } from "@/supabaseClient";
 import axios from "../../../../axiosconfig";
 import { OrderActivityService } from "@/services/orderActivityService";
 
+const buildOrderSearchTerms = (searchQuery?: string) => {
+  const rawSearch = String(searchQuery || "").trim();
+  if (!rawSearch) return [];
+
+  const withoutSalesPrefix = rawSearch.replace(/^so[\s-]*/i, "").trim();
+  const normalized = rawSearch.replace(/[^a-z0-9]/gi, "");
+  const normalizedWithoutSalesPrefix = normalized.replace(/^so/i, "");
+
+  return Array.from(
+    new Set([rawSearch, withoutSalesPrefix, normalized, normalizedWithoutSalesPrefix])
+  )
+    .map((term) => term.trim())
+    .filter(Boolean)
+    .map((term) => term.replace(/[%,()]/g, " "));
+};
+
+const buildOrderSearchOrFilter = (searchQuery?: string) => {
+  const fields = [
+    "order_number",
+    "customerInfo->>name",
+    "customerInfo->>email",
+    "customerInfo->>phone",
+    "customerInfo->address->>street",
+    "customerInfo->address->>city",
+    "customerInfo->address->>state",
+    "customerInfo->address->>zip_code",
+    "shippingAddress->>fullName",
+    "shippingAddress->>email",
+    "shippingAddress->>phone",
+    "shippingAddress->address->>street",
+    "shippingAddress->address->>city",
+    "shippingAddress->address->>state",
+    "shippingAddress->address->>zip_code",
+    "purchase_number_external",
+    "tracking_number",
+    "shipping->>method",
+    "status",
+    "payment_status",
+    "notes",
+  ];
+
+  return buildOrderSearchTerms(searchQuery)
+    .flatMap((term) => fields.map((field) => `${field}.ilike.%${term}%`))
+    .join(",");
+};
+
 export const useOrderManagement = () => {
   const { toast } = useToast();
   const [orders, setOrders] = useState<OrderFormValues[]>([]);
@@ -128,11 +174,11 @@ setOrders([])
       }
 
       // Apply search
-      if (searchQuery) {
-        const search = `%${searchQuery}%`;
-        query = query.or(
-          `order_number.ilike.${search},customerInfo->>name.ilike.${search},customerInfo->>email.ilike.${search},customerInfo->>phone.ilike.${search},purchase_number_external.ilike.${search},notes.ilike.${search}`
-        );
+      if (searchQuery && !poIs) {
+        const searchFilter = buildOrderSearchOrFilter(searchQuery);
+        if (searchFilter) {
+          query = query.or(searchFilter);
+        }
       }
  // ✅ PO orders filter - only filter when viewing PO page
     if (poIs === true) {

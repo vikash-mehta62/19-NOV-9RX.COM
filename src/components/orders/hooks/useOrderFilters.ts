@@ -3,6 +3,25 @@ import { OrderFormValues } from "../schemas/orderSchema";
 import { matchesPoWorkflowFilter } from "../utils/poWorkflow";
 import { getCustomerName } from "../utils/customerUtils";
 
+const normalizeSearchText = (value: unknown) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+const stringifySearchValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(stringifySearchValue).join(" ");
+  }
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).map(stringifySearchValue).join(" ");
+  }
+  return "";
+};
+
 export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [statusFilter2, setStatusFilter2] = useState<string | string[]>("all");
@@ -52,7 +71,19 @@ export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) =
     })
     .filter((order) => {
       if (!searchQuery) return true;
-      const query = searchQuery.toLowerCase();
+      const query = searchQuery.trim().toLowerCase();
+      const normalizedQuery = normalizeSearchText(query);
+
+      const searchableOrder = order as OrderFormValues & {
+        created_at?: string;
+        estimated_delivery?: string;
+        invoice_number?: string;
+        notes?: string;
+        purchase_number_external?: string;
+        receiving_notes?: string;
+        shipping_method?: string;
+        total_amount?: number | string;
+      };
 
       const {
         customerInfo = {},
@@ -60,7 +91,7 @@ export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) =
         order_number = "",
         specialInstructions = "",
         purchase_number_external = "",
-      } = order as OrderFormValues & { purchase_number_external?: string };
+      } = searchableOrder;
 
       const {
         name = "",
@@ -77,21 +108,43 @@ export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) =
         zip_code = "",
       } = address;
       const displayName = getCustomerName(order);
+      const searchableValues = [
+        id,
+        order_number,
+        purchase_number_external,
+        displayName,
+        name,
+        email,
+        phone,
+        type,
+        street,
+        city,
+        state,
+        zip_code,
+        specialInstructions,
+        searchableOrder.notes,
+        searchableOrder.receiving_notes,
+        searchableOrder.shipping_method,
+        order.shipping?.method,
+        order.status,
+        order.payment_status,
+        searchableOrder.invoice_number,
+        order.date,
+        searchableOrder.created_at,
+        searchableOrder.estimated_delivery,
+        order.total,
+        searchableOrder.total_amount,
+        stringifySearchValue(order.customerInfo),
+        stringifySearchValue(order.shippingAddress),
+        stringifySearchValue(order.shipping),
+        stringifySearchValue(order.items),
+      ];
+      const searchableText = searchableValues.map((value) => String(value || "").toLowerCase()).join(" ");
+      const normalizedSearchableText = normalizeSearchText(searchableText);
 
       return (
-        id.toLowerCase().includes(query) ||
-        order_number?.toLowerCase().includes(query) ||
-        purchase_number_external?.toLowerCase().includes(query) ||
-        displayName.toLowerCase().includes(query) ||
-        name.toLowerCase().includes(query) ||
-        email.toLowerCase().includes(query) ||
-        phone.toLowerCase().includes(query) ||
-        type.toLowerCase().includes(query) ||
-        street.toLowerCase().includes(query) ||
-        city.toLowerCase().includes(query) ||
-        state.toLowerCase().includes(query) ||
-        zip_code.toLowerCase().includes(query) ||
-        specialInstructions?.toLowerCase().includes(query)
+        searchableText.includes(query) ||
+        (normalizedQuery.length > 0 && normalizedSearchableText.includes(normalizedQuery))
       );
     })
     .filter((order) => {
