@@ -15,7 +15,9 @@ const COMPLETED_ORDER_STATUSES = [
 const EXCLUDE_ORDER_STATUSES = [
   'cancelled',
   'cart',
-  'credit_approval_processing'
+  'credit_approval_processing',
+  'rejected',
+  'voided'
 ];
 
 // =====================================================
@@ -40,29 +42,93 @@ export interface SalesForecast {
   summary: {
     expectedRevenue: number;
     growthRate: number;
-    seasonalFactor: number;
+    historicalRevenue: number;
+    historicalDailyAverage: number;
+    includedOrders: number;
+    excludedOrders: number;
+    totalRowsScanned: number;
+    historyStart: string;
+    historyEnd: string;
+    basis: string;
   };
 }
 
+interface ForecastOrderRow {
+  id: string;
+  created_at?: string | null;
+  total_amount?: number | string | null;
+  status?: string | null;
+  void?: boolean | null;
+  deleted_at?: string | null;
+  poApproved?: boolean | string | null;
+  poAccept?: boolean | string | null;
+}
+
+interface ForecastTrend {
+  slope: number;
+  intercept: number;
+  avgRevenue: number;
+  residualStdDev: number;
+}
+
+function isPurchaseOrderLike(order: Pick<ForecastOrderRow, 'poApproved' | 'poAccept'>): boolean {
+  return order.poApproved === true ||
+    order.poApproved === 'true' ||
+    order.poAccept === false ||
+    order.poAccept === 'false';
+}
+
 /**
- * Generate sales forecast using enhanced linear regression with outlier removal and smoothing
+ * Generate sales forecast from completed sales orders only.
  */
 export async function generateSalesForecast(
   days: 30 | 60 | 90 = 30
 ): Promise<SalesForecast> {
   try {
-    const { data: orders, error } = await supabase
-      .from('orders')
-      .select('created_at, total_amount')
-      .gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
-      .in('status', COMPLETED_ORDER_STATUSES)
-      .or('void.eq.false,void.is.null')
-      .is('deleted_at', null);
+    const historyDays = 90;
+    const historyEnd = new Date();
+    const historyStart = new Date(historyEnd);
+    historyStart.setDate(historyStart.getDate() - historyDays + 1);
+    historyStart.setHours(0, 0, 0, 0);
 
-    if (error) throw error;
+    let rows: ForecastOrderRow[] = [];
 
-    // Step 1: Group by week for more stable patterns
-    const weeklySales = groupByWeek(orders || []);
+    try {
+      rows = await fetchAllPages<ForecastOrderRow>((from, to) =>
+        supabase
+          .from('orders')
+          .select('id, created_at, total_amount, status, void, deleted_at, poApproved, poAccept')
+          .gte('created_at', historyStart.toISOString())
+          .lte('created_at', historyEnd.toISOString())
+          .range(from, to)
+      );
+    } catch (ordersError) {
+      console.warn('Sales forecast order query fell back without purchase-order flags:', ordersError);
+      rows = await fetchAllPages<ForecastOrderRow>((from, to) =>
+        supabase
+          .from('orders')
+          .select('id, created_at, total_amount, status, void, deleted_at')
+          .gte('created_at', historyStart.toISOString())
+          .lte('created_at', historyEnd.toISOString())
+          .range(from, to)
+      );
+    }
+
+    const completedSalesOrders = rows.filter((order) => {
+      const status = normalizeStatus(order.status);
+      const createdAt = new Date(order.created_at || '').getTime();
+
+      return Number.isFinite(createdAt) &&
+        order.void !== true &&
+        !order.deleted_at &&
+        !isPurchaseOrderLike(order) &&
+        COMPLETED_ORDER_STATUSES.includes(status);
+    });
+    const excludedOrders = rows.length - completedSalesOrders.length;
+
+    // Step 1: Build a complete 90-day calendar so quiet days are represented as real zero-sales days.
+    const dailySales = buildDailySalesSeries(completedSalesOrders, historyStart, historyEnd);
+    const weeklySales = groupDailySalesByWeek(dailySales);
     
     // Step 2: Remove outliers using IQR method
     const cleanedSales = removeOutliers(weeklySales);
@@ -73,16 +139,20 @@ export async function generateSalesForecast(
     // Step 4: Calculate trend on smoothed data
     const trend = calculateTrend(smoothedSales);
     
-    // Step 5: Generate forecast (convert weekly trend to daily)
-    const forecast = generateForecastDataFromWeekly(smoothedSales, trend, days);
+    // Step 5: Generate forecast from weekly trend, starting tomorrow.
+    const forecast = generateForecastDataFromWeekly(smoothedSales, trend, days, historyEnd);
     
     // Step 6: Calculate confidence on smoothed data
     const confidence = calculateConfidence(smoothedSales, trend);
     
     // Calculate growth rate as percentage of average revenue
-    const growthRatePercent = trend.avgRevenue > 0 
-      ? (trend.slope / trend.avgRevenue) * 100 
+    const growthRatePercent = trend.avgRevenue > 0
+      ? (trend.slope / trend.avgRevenue) * 100
       : 0;
+    const historicalRevenue = completedSalesOrders.reduce(
+      (sum, order) => sum + Math.max(0, toNumber(order.total_amount)),
+      0
+    );
 
     return {
       period: `${days}d` as '30d' | '60d' | '90d',
@@ -92,7 +162,14 @@ export async function generateSalesForecast(
       summary: {
         expectedRevenue: forecast.reduce((sum, d) => sum + d.predicted, 0),
         growthRate: growthRatePercent,
-        seasonalFactor: 1.0,
+        historicalRevenue,
+        historicalDailyAverage: historicalRevenue / historyDays,
+        includedOrders: completedSalesOrders.length,
+        excludedOrders,
+        totalRowsScanned: rows.length,
+        historyStart: historyStart.toISOString(),
+        historyEnd: historyEnd.toISOString(),
+        basis: `${historyDays} days of completed sales orders`,
       },
     };
   } catch (error) {
@@ -116,6 +193,7 @@ const INVENTORY_CONFIG = {
 interface InventoryPrediction {
   productId: string;
   productName: string;
+  sizes: InventorySizePrediction[];
   currentStock: number;
   reservedStock: number;
   availableStock: number;
@@ -130,55 +208,242 @@ interface InventoryPrediction {
   minimumOrderQuantity?: number;
 }
 
+interface InventorySizePrediction {
+  id: string;
+  label: string;
+  sizeName?: string | null;
+  sizeValue?: string | null;
+  sizeUnit?: string | null;
+  unitToggle?: boolean;
+  sku?: string | null;
+  stock: number;
+  avgDailySales: number;
+  isActive: boolean;
+}
+
+interface InventoryProductRow {
+  id: string;
+  name: string;
+  unitToggle?: boolean | null;
+  current_stock?: number | string | null;
+  reserved_stock?: number | string | null;
+  reorder_point?: number | string | null;
+  product_sizes?: Array<{
+    id: string;
+    size_name?: string | null;
+    size_value?: number | string | null;
+    size_unit?: string | null;
+    sku?: string | null;
+    stock?: number | string | null;
+    is_active?: boolean | null;
+    sizeSquanence?: number | string | null;
+  }> | null;
+}
+
+interface InventoryOrderRow {
+  id: string;
+  created_at?: string | null;
+  status?: string | null;
+  void?: boolean | null;
+  deleted_at?: string | null;
+  poApproved?: boolean | string | null;
+  items?: any;
+}
+
+interface InventoryOrderItemRow {
+  order_id?: string | null;
+  product_id?: string | null;
+  product_size_id?: string | null;
+  quantity?: number | string | null;
+}
+
+const PAGE_SIZE = 1000;
+
+async function fetchAllPages<T>(
+  buildQuery: (from: number, to: number) => any
+): Promise<T[]> {
+  const rows: T[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+
+    const page = (data || []) as T[];
+    rows.push(...page);
+
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return rows;
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function isSalesOrder(order: InventoryOrderRow): boolean {
+  const status = String(order.status || '').toLowerCase();
+  const isPurchaseOrder = order.poApproved === true || order.poApproved === 'true';
+
+  return !isPurchaseOrder &&
+    order.void !== true &&
+    !order.deleted_at &&
+    !EXCLUDE_ORDER_STATUSES.includes(status);
+}
+
+function getProductCurrentStock(product: InventoryProductRow): number {
+  const activeSizes = (product.product_sizes || []).filter((size) => size.is_active !== false);
+
+  if (activeSizes.length > 0) {
+    return activeSizes.reduce((sum, size) => sum + toNumber(size.stock), 0);
+  }
+
+  return toNumber(product.current_stock);
+}
+
+function getSizeValueLabel(
+  size: NonNullable<InventoryProductRow['product_sizes']>[number],
+  showUnit: boolean
+): string {
+  const sizeValue = String(size.size_value || '').trim();
+  const sizeUnit = String(size.size_unit || '').trim();
+
+  return [sizeValue, showUnit ? sizeUnit : ''].filter(Boolean).join(' ').trim();
+}
+
+function getSizeLabel(
+  size: NonNullable<InventoryProductRow['product_sizes']>[number],
+  fallback: string,
+  showUnit: boolean
+): string {
+  const sizeName = String(size.size_name || '').trim();
+  const sizePack = getSizeValueLabel(size, showUnit);
+
+  return sizeName || sizePack || fallback;
+}
+
+function extractOrderItemsFromJson(order: InventoryOrderRow): InventoryOrderItemRow[] {
+  if (!Array.isArray(order.items)) return [];
+
+  return order.items.flatMap((item: any) => {
+    const productId = item?.productId || item?.product_id;
+    if (!productId) return [];
+
+    const sizes = Array.isArray(item?.sizes) ? item.sizes : [];
+    if (sizes.length > 0) {
+      return sizes
+        .map((size: any) => ({
+          order_id: order.id,
+          product_id: productId,
+          product_size_id: size?.id || size?.product_size_id || null,
+          quantity: size?.quantity ?? size?.qty ?? item?.quantity ?? 0,
+        }))
+        .filter((line: InventoryOrderItemRow) => toNumber(line.quantity) > 0);
+    }
+
+    return [{
+      order_id: order.id,
+      product_id: productId,
+      product_size_id: item?.product_size_id || null,
+      quantity: item?.quantity ?? item?.qty ?? 0,
+    }].filter((line) => toNumber(line.quantity) > 0);
+  });
+}
+
 /**
  * Predict inventory demand for products
  * Analyzes sales trends and provides AI-powered stock level recommendations
  */
 export async function predictInventoryDemand(): Promise<InventoryPrediction[]> {
   try {
-    // Fetch all products first
-    const { data: products, error: productsError } = await supabase
-      .from('products')
-      .select('id, name, current_stock, reserved_stock, reorder_point');
-
-    if (productsError) {
-      console.error('Error fetching products:', productsError);
-      throw productsError;
-    }
-
-    // Fetch order items with order information
-    // Calculate cutoff date for analysis period
     const cutoffDate = new Date(Date.now() - INVENTORY_CONFIG.ANALYSIS_PERIOD_DAYS * 24 * 60 * 60 * 1000).toISOString();
-    
-    const { data: orderItems, error: orderItemsError } = await supabase
-      .from('order_items')
-      .select(`
-        product_id,
-        quantity,
-        created_at,
-        order_id,
-        orders!inner(
-          id,
-          status,
-          void
-        )
-      `)
-      .gte('created_at', cutoffDate);
 
-    if (orderItemsError) {
-      console.error('Error fetching order items:', orderItemsError);
-      throw orderItemsError;
+    const products = await fetchAllPages<InventoryProductRow>((from, to) =>
+      supabase
+        .from('products')
+        .select(`
+          id,
+          name,
+          unitToggle,
+          current_stock,
+          reserved_stock,
+          reorder_point,
+          product_sizes (
+            id,
+            size_name,
+            size_value,
+            size_unit,
+            sku,
+            stock,
+            is_active,
+            sizeSquanence
+          )
+        `)
+        .order('name', { ascending: true })
+        .range(from, to)
+    );
+
+    let orders: InventoryOrderRow[] = [];
+    try {
+      orders = await fetchAllPages<InventoryOrderRow>((from, to) =>
+        supabase
+          .from('orders')
+          .select('id, created_at, status, void, deleted_at, poApproved, items')
+          .gte('created_at', cutoffDate)
+          .or('void.eq.false,void.is.null')
+          .is('deleted_at', null)
+          .range(from, to)
+      );
+    } catch (ordersError) {
+      // Some environments do not expose poApproved in generated metadata.
+      // Fall back to the common columns so demand analytics still work.
+      console.warn('Inventory demand order query fell back without poApproved:', ordersError);
+      orders = await fetchAllPages<InventoryOrderRow>((from, to) =>
+        supabase
+          .from('orders')
+          .select('id, created_at, status, void, deleted_at, items')
+          .gte('created_at', cutoffDate)
+          .or('void.eq.false,void.is.null')
+          .is('deleted_at', null)
+          .range(from, to)
+      );
     }
 
-    // Filter valid order items (not void, not cancelled/rejected)
-    const validOrderItems = orderItems?.filter((item: any) => {
-      const order = item.orders;
-      return order && !order.void && !['cancelled', 'rejected'].includes(order.status);
-    }) || [];
+    const validOrders = orders.filter(isSalesOrder);
+    const validOrderIds = validOrders.map((order) => order.id).filter(Boolean);
+    const orderItemsFromTable: InventoryOrderItemRow[] = [];
+
+    for (let i = 0; i < validOrderIds.length; i += 100) {
+      const chunk = validOrderIds.slice(i, i + 100);
+      const chunkItems = await fetchAllPages<InventoryOrderItemRow>((from, to) =>
+        supabase
+          .from('order_items')
+          .select('order_id, product_id, product_size_id, quantity')
+          .in('order_id', chunk)
+          .range(from, to)
+      );
+      orderItemsFromTable.push(...chunkItems);
+    }
+
+    const orderIdsWithTableItems = new Set(
+      orderItemsFromTable
+        .map((item) => item.order_id)
+        .filter(Boolean)
+    );
+
+    const orderItemsFromJson = validOrders
+      .filter((order) => !orderIdsWithTableItems.has(order.id))
+      .flatMap(extractOrderItemsFromJson);
+
+    const validOrderItems = [...orderItemsFromTable, ...orderItemsFromJson]
+      .filter((item) => item.product_id && toNumber(item.quantity) > 0);
 
     // Group order items by product
-    const productSalesMap = new Map<string, any[]>();
-    validOrderItems.forEach((item: any) => {
+    const productSalesMap = new Map<string, InventoryOrderItemRow[]>();
+    validOrderItems.forEach((item) => {
       if (!item.product_id) return;
       if (!productSalesMap.has(item.product_id)) {
         productSalesMap.set(item.product_id, []);
@@ -186,15 +451,49 @@ export async function predictInventoryDemand(): Promise<InventoryPrediction[]> {
       productSalesMap.get(item.product_id)!.push(item);
     });
 
-    return products?.map(product => {
+    return products.map(product => {
       const orderItems = productSalesMap.get(product.id) || [];
       
-      const totalSold = orderItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
+      const totalSold = orderItems.reduce((sum, item) => sum + toNumber(item.quantity), 0);
       const avgDailySales = totalSold / INVENTORY_CONFIG.ANALYSIS_PERIOD_DAYS;
+      const salesBySizeId = new Map<string, number>();
+      orderItems.forEach((item) => {
+        if (!item.product_size_id) return;
+        salesBySizeId.set(
+          item.product_size_id,
+          (salesBySizeId.get(item.product_size_id) || 0) + toNumber(item.quantity)
+        );
+      });
+      const sizes = [...(product.product_sizes || [])]
+        .sort((a, b) => {
+          const sequenceA = toNumber(a.sizeSquanence, Number.MAX_SAFE_INTEGER);
+          const sequenceB = toNumber(b.sizeSquanence, Number.MAX_SAFE_INTEGER);
+          if (sequenceA !== sequenceB) return sequenceA - sequenceB;
+          const showUnit = product.unitToggle === true;
+          return getSizeLabel(a, product.name, showUnit).localeCompare(getSizeLabel(b, product.name, showUnit));
+        })
+        .map((size) => {
+          const sold = salesBySizeId.get(size.id) || 0;
+          const showUnit = product.unitToggle === true;
+
+          return {
+            id: size.id,
+            label: getSizeLabel(size, product.name, showUnit),
+            sizeName: size.size_name || null,
+            sizeValue: size.size_value === null || size.size_value === undefined ? null : String(size.size_value),
+            sizeUnit: size.size_unit || null,
+            unitToggle: showUnit,
+            sku: size.sku || null,
+            stock: toNumber(size.stock),
+            avgDailySales: Math.round((sold / INVENTORY_CONFIG.ANALYSIS_PERIOD_DAYS) * 100) / 100,
+            isActive: size.is_active !== false,
+          };
+        });
       
-      // Calculate available stock (current - reserved)
-      const reservedStock = product.reserved_stock || 0;
-      const availableStock = product.current_stock - reservedStock;
+      // Calculate available stock from size-level inventory when present.
+      const currentStock = getProductCurrentStock(product);
+      const reservedStock = toNumber(product.reserved_stock);
+      const availableStock = currentStock - reservedStock;
       const isOversold = availableStock < 0;
       
       // Calculate days until stockout
@@ -205,12 +504,13 @@ export async function predictInventoryDemand(): Promise<InventoryPrediction[]> {
         daysUntilStockout = availableStock / avgDailySales;
       }
       
-      // Calculate recommended reorder with lead time and safety stock
-      // Use reorder_point as lead time if available, otherwise use default
-      const leadTime = product.reorder_point || INVENTORY_CONFIG.DEFAULT_LEAD_TIME_DAYS;
+      // Calculate recommended reorder with lead time and safety stock.
+      // product.reorder_point is a stock threshold, not a lead-time value.
+      const leadTime = INVENTORY_CONFIG.DEFAULT_LEAD_TIME_DAYS;
       const reorderPeriod = leadTime + INVENTORY_CONFIG.SAFETY_STOCK_DAYS;
       const baseReorder = Math.ceil(avgDailySales * reorderPeriod);
-      const recommendedReorder = Math.max(baseReorder, 1); // Minimum 1 unit
+      const reorderPoint = toNumber(product.reorder_point);
+      const recommendedReorder = Math.max(baseReorder, reorderPoint, avgDailySales > 0 ? 1 : 0);
       
       // Calculate urgency based on lead time
       let urgency: 'critical' | 'high' | 'medium' | 'low' | 'no_data';
@@ -229,14 +529,15 @@ export async function predictInventoryDemand(): Promise<InventoryPrediction[]> {
       }
       
       // Calculate stock health percentage
-      const stockHealthPercent = product.current_stock > 0 
-        ? Math.round((availableStock / product.current_stock) * 100) 
+      const stockHealthPercent = currentStock > 0
+        ? Math.round((availableStock / currentStock) * 100)
         : 0;
 
       return {
         productId: product.id,
         productName: product.name,
-        currentStock: product.current_stock,
+        sizes,
+        currentStock,
         reservedStock,
         availableStock,
         avgDailySales: Math.round(avgDailySales * 100) / 100, // Round to 2 decimals
@@ -248,7 +549,7 @@ export async function predictInventoryDemand(): Promise<InventoryPrediction[]> {
         isOversold,
         stockHealthPercent
       };
-    }) || []; // Show ALL products, no filtering
+    }); // Show ALL products, no filtering
   } catch (error) {
     console.error('Error predicting inventory demand:', error);
     throw error;
@@ -356,13 +657,53 @@ export interface FunnelStep {
   count: number;
   percentage: number;
   dropoff: number;
+  dropoffCount: number;
 }
 
 export interface FunnelData {
   steps: FunnelStep[];
   overallConversion: number;
   biggestDropoff: string;
+  biggestDropoffCount: number;
   creditApprovalPending?: number;
+  cancelledOrRejected: number;
+  excludedOrders: number;
+  analysisStart: string;
+  analysisEnd: string;
+  totalRowsScanned: number;
+}
+
+interface FunnelOrderRow {
+  id: string;
+  status?: string | null;
+  created_at?: string | null;
+  void?: boolean | null;
+  deleted_at?: string | null;
+  poApproved?: boolean | string | null;
+}
+
+const FUNNEL_BLOCKED_STATUSES = ['cancelled', 'rejected', 'voided', 'credit_approval_processing'];
+const FUNNEL_READY_STATUSES = ['new', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'completed'];
+const FUNNEL_PROCESSING_STATUSES = ['processing', 'shipped', 'delivered', 'completed'];
+
+function normalizeStatus(status: unknown): string {
+  return String(status || '').trim().toLowerCase();
+}
+
+function isPurchaseOrderRow(order: Pick<FunnelOrderRow, 'poApproved'>): boolean {
+  return order.poApproved === true || order.poApproved === 'true';
+}
+
+function buildFunnelStep(name: string, count: number, previousCount: number | null, totalOrders: number): FunnelStep {
+  const dropoffCount = previousCount === null ? 0 : Math.max(0, previousCount - count);
+
+  return {
+    name,
+    count,
+    percentage: totalOrders > 0 ? (count / totalOrders) * 100 : 0,
+    dropoff: previousCount && previousCount > 0 ? (dropoffCount / previousCount) * 100 : 0,
+    dropoffCount,
+  };
 }
 
 export async function generateFunnelAnalysis(
@@ -370,47 +711,62 @@ export async function generateFunnelAnalysis(
   endDate: Date
 ): Promise<FunnelData> {
   try {
-    const { data: orders } = await supabase
-      .from('orders')
-      .select('id, status, created_at')
-      .gte('created_at', startDate.toISOString())
-      .lte('created_at', endDate.toISOString())
-      .or('void.eq.false,void.is.null')
-      .is('deleted_at', null);
+    const queryStart = startDate.toISOString();
+    const queryEnd = endDate.toISOString();
+    let rows: FunnelOrderRow[] = [];
 
-    // Real data - no fake multipliers
-    const ordersCreated = orders?.length || 0;
-    const checkoutStarted = orders?.filter(o => o.status !== 'cart').length || 0;
-    
-    // Count orders pending credit approval (excluded from completed)
-    const creditApprovalPending = orders?.filter(o => 
-      o.status === 'credit_approval_processing'
-    ).length || 0;
-    
-    // Completed orders (strict final fulfillment states only)
-    const completed = orders?.filter(o => 
-      COMPLETED_ORDER_STATUSES.includes(o.status)
-    ).length || 0;
+    try {
+      rows = await fetchAllPages<FunnelOrderRow>((from, to) =>
+        supabase
+          .from('orders')
+          .select('id, status, created_at, void, deleted_at, poApproved')
+          .gte('created_at', queryStart)
+          .lte('created_at', queryEnd)
+          .range(from, to)
+      );
+    } catch (ordersError) {
+      console.warn('Funnel analysis order query fell back without poApproved:', ordersError);
+      rows = await fetchAllPages<FunnelOrderRow>((from, to) =>
+        supabase
+          .from('orders')
+          .select('id, status, created_at, void, deleted_at')
+          .gte('created_at', queryStart)
+          .lte('created_at', queryEnd)
+          .range(from, to)
+      );
+    }
+
+    const usableRows = rows.filter((order) =>
+      order.void !== true &&
+      !order.deleted_at &&
+      !isPurchaseOrderRow(order)
+    );
+    const salesOrders = usableRows.filter((order) => normalizeStatus(order.status) !== 'cart');
+    const excludedOrders = rows.length - salesOrders.length;
+
+    const ordersCreated = salesOrders.length;
+    const creditApprovalPending = salesOrders.filter(
+      (order) => normalizeStatus(order.status) === 'credit_approval_processing'
+    ).length;
+    const cancelledOrRejected = salesOrders.filter((order) =>
+      ['cancelled', 'rejected', 'voided'].includes(normalizeStatus(order.status))
+    ).length;
+    const readyForProcessing = salesOrders.filter((order) => {
+      const status = normalizeStatus(order.status);
+      return FUNNEL_READY_STATUSES.includes(status) && !FUNNEL_BLOCKED_STATUSES.includes(status);
+    }).length;
+    const processingStarted = salesOrders.filter((order) =>
+      FUNNEL_PROCESSING_STATUSES.includes(normalizeStatus(order.status))
+    ).length;
+    const fulfilled = salesOrders.filter((order) =>
+      COMPLETED_ORDER_STATUSES.includes(normalizeStatus(order.status))
+    ).length;
 
     const steps: FunnelStep[] = [
-      {
-        name: 'Orders Created',
-        count: ordersCreated,
-        percentage: 100,
-        dropoff: 0,
-      },
-      {
-        name: 'Checkout Started',
-        count: checkoutStarted,
-        percentage: ordersCreated > 0 ? (checkoutStarted / ordersCreated) * 100 : 0,
-        dropoff: ordersCreated > 0 ? ((ordersCreated - checkoutStarted) / ordersCreated) * 100 : 0,
-      },
-      {
-        name: 'Purchase Completed',
-        count: completed,
-        percentage: ordersCreated > 0 ? (completed / ordersCreated) * 100 : 0,
-        dropoff: checkoutStarted > 0 ? ((checkoutStarted - completed) / checkoutStarted) * 100 : 0,
-      },
+      buildFunnelStep('Orders Created', ordersCreated, null, ordersCreated),
+      buildFunnelStep('Ready for Processing', readyForProcessing, ordersCreated, ordersCreated),
+      buildFunnelStep('Processing Started', processingStarted, readyForProcessing, ordersCreated),
+      buildFunnelStep('Fulfilled', fulfilled, processingStarted, ordersCreated),
     ];
 
     const biggestDropoff = steps.reduce((max, step) => 
@@ -419,9 +775,15 @@ export async function generateFunnelAnalysis(
 
     return {
       steps,
-      overallConversion: ordersCreated > 0 ? (completed / ordersCreated) * 100 : 0,
-      biggestDropoff: biggestDropoff.name,
+      overallConversion: ordersCreated > 0 ? (fulfilled / ordersCreated) * 100 : 0,
+      biggestDropoff: biggestDropoff.dropoff > 0 ? biggestDropoff.name : 'No dropoff',
+      biggestDropoffCount: biggestDropoff.dropoffCount,
       creditApprovalPending,
+      cancelledOrRejected,
+      excludedOrders,
+      analysisStart: queryStart,
+      analysisEnd: queryEnd,
+      totalRowsScanned: rows.length,
     };
   } catch (error) {
     console.error('Error generating funnel analysis:', error);
@@ -440,80 +802,144 @@ export interface RFMSegment {
   count: number;
   totalValue: number;
   avgValue: number;
+  avgRecencyDays: number;
+  avgFrequency: number;
+  avgOrderValue: number;
   color: string;
 }
 
 export interface RFMData {
   segments: RFMSegment[];
   totalCustomers: number;
+  totalCompletedOrders: number;
+  totalValue: number;
+  ordersScanned: number;
+  excludedOrders: number;
+  generatedAt: string;
+}
+
+interface RFMOrderRow {
+  id: string;
+  profile_id?: string | null;
+  created_at?: string | null;
+  total_amount?: number | string | null;
+  status?: string | null;
+  void?: boolean | null;
+  deleted_at?: string | null;
+  poApproved?: boolean | string | null;
+  poAccept?: boolean | string | null;
+}
+
+interface RFMCustomerScore {
+  customerId: string;
+  recency: number;
+  frequency: number;
+  monetary: number;
+  avgOrderValue: number;
+  rScore: number;
+  fScore: number;
+  mScore: number;
+  segment: string;
+}
+
+function isPurchaseOrderAnalyticsRow(order: Pick<RFMOrderRow, 'poApproved' | 'poAccept'>): boolean {
+  return order.poApproved === true ||
+    order.poApproved === 'true' ||
+    order.poAccept === false ||
+    order.poAccept === 'false';
+}
+
+function getRFMScore(value: number, sortedAscending: number[], higherIsBetter: boolean): number {
+  if (sortedAscending.length <= 1) return 5;
+
+  const betterOrEqualCount = sortedAscending.filter((candidate) =>
+    higherIsBetter ? candidate <= value : candidate >= value
+  ).length;
+  const percentile = betterOrEqualCount / sortedAscending.length;
+
+  if (percentile >= 0.8) return 5;
+  if (percentile >= 0.6) return 4;
+  if (percentile >= 0.4) return 3;
+  if (percentile >= 0.2) return 2;
+  return 1;
 }
 
 export async function generateRFMAnalysis(): Promise<RFMData> {
   try {
-    const { data: customers, error } = await supabase
-      .from('profiles')
-      .select(`
-        id,
-        first_name,
-        last_name,
-        orders!orders_profile_id_fkey(
-          created_at,
-          total_amount,
-          status
-        )
-      `);
+    let orders: RFMOrderRow[] = [];
 
-    if (error) throw error;
+    try {
+      orders = await fetchAllPages<RFMOrderRow>((from, to) =>
+        supabase
+          .from('orders')
+          .select('id, profile_id, created_at, total_amount, status, void, deleted_at, poApproved, poAccept')
+          .range(from, to)
+      );
+    } catch (ordersError) {
+      console.warn('RFM order query fell back without purchase-order flags:', ordersError);
+      orders = await fetchAllPages<RFMOrderRow>((from, to) =>
+        supabase
+          .from('orders')
+          .select('id, profile_id, created_at, total_amount, status, void, deleted_at')
+          .range(from, to)
+      );
+    }
 
     const now = new Date();
-    const rfmScores = customers?.map(customer => {
-      const orders = ((customer as any).orders || []).filter(
-        (o: any) => COMPLETED_ORDER_STATUSES.includes(o.status)
-      );
+    const completedSalesOrders = orders.filter((order) => {
+      const status = normalizeStatus(order.status);
+      return Boolean(order.profile_id) &&
+        order.void !== true &&
+        !order.deleted_at &&
+        !isPurchaseOrderAnalyticsRow(order) &&
+        COMPLETED_ORDER_STATUSES.includes(status);
+    });
+    const excludedOrders = orders.length - completedSalesOrders.length;
+    const ordersByCustomer = new Map<string, RFMOrderRow[]>();
 
-      if (orders.length === 0) return null;
+    completedSalesOrders.forEach((order) => {
+      const customerId = order.profile_id;
+      if (!customerId) return;
+      if (!ordersByCustomer.has(customerId)) {
+        ordersByCustomer.set(customerId, []);
+      }
+      ordersByCustomer.get(customerId)!.push(order);
+    });
 
-      const lastOrderDate = new Date(Math.max(...orders.map((o: any) => new Date(o.created_at).getTime())));
+    const baseScores = Array.from(ordersByCustomer.entries()).map(([customerId, customerOrders]) => {
+      const validOrderDates = customerOrders
+        .map((order) => new Date(order.created_at || '').getTime())
+        .filter(Number.isFinite);
+      const lastOrderDate = new Date(Math.max(...validOrderDates));
       const recency = Math.floor((now.getTime() - lastOrderDate.getTime()) / (1000 * 60 * 60 * 24));
-      const frequency = orders.length;
-      const monetary = orders.reduce((sum: number, o: any) => sum + parseFloat(o.total_amount), 0);
+      const frequency = customerOrders.length;
+      const monetary = customerOrders.reduce((sum, order) => sum + toNumber(order.total_amount), 0);
 
       return {
-        customerId: customer.id,
-        customerName: `${(customer as any).first_name || ''} ${(customer as any).last_name || ''}`.trim() || 'Unknown',
+        customerId,
         recency,
         frequency,
         monetary,
+        avgOrderValue: frequency > 0 ? monetary / frequency : 0,
       };
-    }).filter(Boolean) || [];
+    }).filter((customer) => Number.isFinite(customer.recency));
 
-    const recencies = rfmScores.map(s => s!.recency).sort((a, b) => a - b);
-    const frequencies = rfmScores.map(s => s!.frequency).sort((a, b) => b - a);
-    const monetaries = rfmScores.map(s => s!.monetary).sort((a, b) => b - a);
+    const recencies = baseScores.map((score) => score.recency).sort((a, b) => a - b);
+    const frequencies = baseScores.map((score) => score.frequency).sort((a, b) => a - b);
+    const monetaries = baseScores.map((score) => score.monetary).sort((a, b) => a - b);
 
-    const getQuartile = (value: number, arr: number[]) => {
-      const q1 = arr[Math.floor(arr.length * 0.25)];
-      const q2 = arr[Math.floor(arr.length * 0.50)];
-      const q3 = arr[Math.floor(arr.length * 0.75)];
-      
-      if (value <= q1) return 4;
-      if (value <= q2) return 3;
-      if (value <= q3) return 2;
-      return 1;
-    };
-
-    const scoredCustomers = rfmScores.map(customer => {
-      const rScore = getQuartile(customer!.recency, recencies);
-      const fScore = getQuartile(customer!.frequency, frequencies);
-      const mScore = getQuartile(customer!.monetary, monetaries);
+    const scoredCustomers: RFMCustomerScore[] = baseScores.map((customer) => {
+      const rScore = getRFMScore(customer.recency, recencies, false);
+      const fScore = getRFMScore(customer.frequency, frequencies, true);
+      const mScore = getRFMScore(customer.monetary, monetaries, true);
       
       let segment = '';
       if (rScore >= 4 && fScore >= 4 && mScore >= 4) segment = 'Champions';
-      else if (rScore >= 3 && fScore >= 3 && mScore >= 3) segment = 'Loyal Customers';
+      else if (rScore >= 3 && fScore >= 4 && mScore >= 3) segment = 'Loyal Customers';
       else if (rScore >= 4 && fScore <= 2) segment = 'New Customers';
       else if (rScore >= 3 && fScore <= 2) segment = 'Promising';
       else if (rScore <= 2 && fScore >= 3) segment = 'At Risk';
-      else if (rScore <= 2 && fScore <= 2 && mScore >= 3) segment = 'Cant Lose Them';
+      else if (rScore <= 2 && fScore <= 2 && mScore >= 4) segment = "Can't Lose Them";
       else if (rScore <= 2 && fScore <= 2 && mScore <= 2) segment = 'Lost';
       else segment = 'Others';
 
@@ -527,28 +953,39 @@ export async function generateRFMAnalysis(): Promise<RFMData> {
     });
 
     const segments = new Map<string, any[]>();
-    scoredCustomers.forEach(customer => {
-      if (!segments.has(customer!.segment)) {
-        segments.set(customer!.segment, []);
+    scoredCustomers.forEach((customer) => {
+      if (!segments.has(customer.segment)) {
+        segments.set(customer.segment, []);
       }
-      segments.get(customer!.segment)!.push(customer);
+      segments.get(customer.segment)!.push(customer);
     });
 
     const segmentData: RFMSegment[] = Array.from(segments.entries()).map(([segment, customers]) => {
       const totalValue = customers.reduce((sum, c) => sum + c!.monetary, 0);
+      const totalFrequency = customers.reduce((sum, c) => sum + c!.frequency, 0);
+      const totalRecency = customers.reduce((sum, c) => sum + c!.recency, 0);
       return {
         segment,
         description: getSegmentDescription(segment),
         count: customers.length,
         totalValue,
         avgValue: totalValue / customers.length,
+        avgRecencyDays: totalRecency / customers.length,
+        avgFrequency: totalFrequency / customers.length,
+        avgOrderValue: totalFrequency > 0 ? totalValue / totalFrequency : 0,
         color: getSegmentColor(segment),
       };
     });
+    const totalValue = completedSalesOrders.reduce((sum, order) => sum + toNumber(order.total_amount), 0);
 
     return {
       segments: segmentData.sort((a, b) => b.totalValue - a.totalValue),
-      totalCustomers: rfmScores.length,
+      totalCustomers: baseScores.length,
+      totalCompletedOrders: completedSalesOrders.length,
+      totalValue,
+      ordersScanned: orders.length,
+      excludedOrders,
+      generatedAt: now.toISOString(),
     };
   } catch (error) {
     console.error('Error generating RFM analysis:', error);
@@ -806,6 +1243,56 @@ function groupByWeek(orders: any[]): Map<string, number> {
   return grouped;
 }
 
+function getDateKey(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+function buildDailySalesSeries(
+  orders: ForecastOrderRow[],
+  startDate: Date,
+  endDate: Date
+): Map<string, number> {
+  const grouped = new Map<string, number>();
+  const current = new Date(startDate);
+  current.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+
+  while (current <= end) {
+    grouped.set(getDateKey(current), 0);
+    current.setDate(current.getDate() + 1);
+  }
+
+  orders.forEach((order) => {
+    const date = new Date(order.created_at || '');
+    if (!Number.isFinite(date.getTime())) return;
+
+    const dateKey = getDateKey(date);
+    if (!grouped.has(dateKey)) return;
+
+    grouped.set(dateKey, (grouped.get(dateKey) || 0) + Math.max(0, toNumber(order.total_amount)));
+  });
+
+  return grouped;
+}
+
+function groupDailySalesByWeek(dailySales: Map<string, number>): Map<string, number> {
+  const grouped = new Map<string, number>();
+
+  dailySales.forEach((amount, dateKey) => {
+    const date = new Date(`${dateKey}T00:00:00`);
+    const dayOfWeek = date.getDay();
+    const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    const monday = new Date(date);
+    monday.setDate(diff);
+    const weekKey = getDateKey(monday);
+
+    grouped.set(weekKey, (grouped.get(weekKey) || 0) + amount);
+  });
+
+  return grouped;
+}
+
 function groupByDate(orders: any[]): Map<string, number> {
   const grouped = new Map<string, number>();
   
@@ -818,11 +1305,11 @@ function groupByDate(orders: any[]): Map<string, number> {
   return grouped;
 }
 
-function calculateTrend(dailySales: Map<string, number>) {
+function calculateTrend(dailySales: Map<string, number>): ForecastTrend {
   const data = Array.from(dailySales.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   const n = data.length;
   
-  if (n < 2) return { slope: 0, intercept: 0, avgRevenue: 0 };
+  if (n < 2) return { slope: 0, intercept: 0, avgRevenue: 0, residualStdDev: 0 };
 
   let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
   
@@ -836,13 +1323,18 @@ function calculateTrend(dailySales: Map<string, number>) {
   const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
   const intercept = (sumY - slope * sumX) / n;
   const avgRevenue = sumY / n;
+  const residualVariance = data.reduce((sum, [, value], index) => {
+    const predicted = Math.max(0, intercept + slope * index);
+    return sum + Math.pow(value - predicted, 2);
+  }, 0) / Math.max(1, n - 2);
+  const residualStdDev = Math.sqrt(residualVariance);
 
-  return { slope, intercept, avgRevenue };
+  return { slope, intercept, avgRevenue, residualStdDev };
 }
 
 function generateForecastData(
   dailySales: Map<string, number>,
-  trend: { slope: number; intercept: number },
+  trend: ForecastTrend,
   days: number
 ): ForecastData[] {
   const data = Array.from(dailySales.entries()).sort((a, b) => a[0].localeCompare(b[0]));
@@ -853,12 +1345,13 @@ function generateForecastData(
     const date = new Date(lastDate);
     date.setDate(date.getDate() + i);
     
-    const predicted = trend.intercept + trend.slope * (data.length + i);
-    const margin = predicted * 0.2;
+    const rawPrediction = trend.intercept + trend.slope * (data.length + i);
+    const predicted = Math.max(0, rawPrediction);
+    const margin = Math.max(predicted * 0.2, trend.residualStdDev);
 
     forecast.push({
       date: date.toISOString().split('T')[0],
-      predicted: Math.max(0, predicted),
+      predicted,
       confidence: {
         lower: Math.max(0, predicted - margin),
         upper: predicted + margin,
@@ -874,29 +1367,27 @@ function generateForecastData(
  */
 function generateForecastDataFromWeekly(
   weeklySales: Map<string, number>,
-  trend: { slope: number; intercept: number },
-  days: number
+  trend: ForecastTrend,
+  days: number,
+  forecastStartDate: Date = new Date()
 ): ForecastData[] {
   const data = Array.from(weeklySales.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  const lastDate = new Date(data[data.length - 1][0]);
   const forecast: ForecastData[] = [];
 
-  // Weekly slope needs to be converted to daily
-  const dailySlope = trend.slope / 7;
-  const dailyIntercept = trend.intercept / 7;
-
   for (let i = 1; i <= days; i++) {
-    const date = new Date(lastDate);
+    const date = new Date(forecastStartDate);
     date.setDate(date.getDate() + i);
     
     // Calculate which week this day falls into
-    const weekOffset = Math.floor(i / 7);
-    const predicted = dailyIntercept + dailySlope * (data.length * 7 + i);
-    const margin = predicted * 0.2;
+    const weekOffset = Math.floor((i - 1) / 7);
+    const weeklyPrediction = trend.intercept + trend.slope * (data.length + weekOffset);
+    const predicted = Math.max(0, weeklyPrediction / 7);
+    const dailyResidual = trend.residualStdDev / 7;
+    const margin = Math.max(predicted * 0.2, dailyResidual);
 
     forecast.push({
       date: date.toISOString().split('T')[0],
-      predicted: Math.max(0, predicted),
+      predicted,
       confidence: {
         lower: Math.max(0, predicted - margin),
         upper: predicted + margin,
@@ -907,20 +1398,27 @@ function generateForecastDataFromWeekly(
   return forecast;
 }
 
-function calculateConfidence(dailySales: Map<string, number>, trend: { slope: number; intercept: number }): number {
+function calculateConfidence(dailySales: Map<string, number>, trend: ForecastTrend): number {
   const data = Array.from(dailySales.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  if (data.length < 3) return 0;
   
   let ssRes = 0, ssTot = 0;
   const mean = Array.from(dailySales.values()).reduce((a, b) => a + b, 0) / dailySales.size;
+  const activePeriods = data.filter(([, value]) => value > 0).length;
 
   data.forEach(([date, actual], index) => {
-    const predicted = trend.intercept + trend.slope * index;
+    const predicted = Math.max(0, trend.intercept + trend.slope * index);
     ssRes += Math.pow(actual - predicted, 2);
     ssTot += Math.pow(actual - mean, 2);
   });
 
+  if (ssTot === 0) {
+    return mean > 0 ? Math.min(1, activePeriods / 8) : 0;
+  }
+
   const rSquared = 1 - (ssRes / ssTot);
-  return Math.max(0, Math.min(1, rSquared));
+  const activePeriodCoverage = Math.min(1, activePeriods / 8);
+  return Math.max(0, Math.min(1, rSquared * activePeriodCoverage));
 }
 
 function getSegmentDescription(segment: string): string {
@@ -929,8 +1427,8 @@ function getSegmentDescription(segment: string): string {
     'Loyal Customers': 'Regular customers with good spending',
     'New Customers': 'Recent customers with potential',
     'Promising': 'Recent customers who need nurturing',
-    'At Risk': 'Were good customers but haven\'t purchased recently',
-    'Cant Lose Them': 'High-value customers who are slipping away',
+    'At Risk': 'Bought often before, but not recently',
+    "Can't Lose Them": 'High-value customers who are slipping away',
     'Lost': 'Haven\'t purchased in a long time',
     'Others': 'Customers who don\'t fit other segments',
   };
@@ -944,7 +1442,7 @@ function getSegmentColor(segment: string): string {
     'New Customers': '#8b5cf6',
     'Promising': '#06b6d4',
     'At Risk': '#f59e0b',
-    'Cant Lose Them': '#ef4444',
+    "Can't Lose Them": '#ef4444',
     'Lost': '#6b7280',
     'Others': '#9ca3af',
   };

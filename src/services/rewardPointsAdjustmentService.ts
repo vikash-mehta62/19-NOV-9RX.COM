@@ -103,13 +103,25 @@ export async function adjustRewardPointsForOrderEdit(
     // Get user's current points
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("reward_points, lifetime_reward_points")
+      .select("reward_points, lifetime_reward_points, rewards_enabled")
       .eq("id", userId)
       .single();
 
     if (userError || !user) {
       console.error('❌ Error fetching user profile:', userError);
       throw new Error('User not found');
+    }
+
+    if (pointsDifference > 0 && (user as any).rewards_enabled === false) {
+      console.log('Rewards disabled for user, skipping positive points adjustment');
+      return {
+        success: false,
+        pointsAdjusted: 0,
+        newTotal,
+        oldTotal,
+        adjustmentType: 'none',
+        error: 'Rewards are disabled for this user'
+      };
     }
 
     const currentPoints = user.reward_points || 0;

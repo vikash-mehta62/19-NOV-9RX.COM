@@ -21,7 +21,7 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
   const [settings, setSettings] = useState({
     email_notifaction: false, // Marketing emails
     order_updates: false,     // Order emails
-    is_rewards_member: false, // Derived from reward_tier
+    is_rewards_member: true,  // Controls rewards UI visibility
     status: "active"          // Account status (active/inactive)
   });
 
@@ -30,7 +30,7 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
       setSettings({
         email_notifaction: profile.email_notifaction || false,
         order_updates: profile.order_updates || false,
-        is_rewards_member: !!profile.reward_tier,
+        is_rewards_member: profile.rewards_enabled !== false,
         status: profile.status || "active" // Default to active if undefined
       });
     }
@@ -48,10 +48,7 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
         // If status is active, enable portal access
         // If status is inactive, disable portal access
         portal_access: settings.status === "active",
-        // If enrolling, set to Bronze if null. If unenrolling, set to null.
-        reward_tier: settings.is_rewards_member 
-          ? (profile?.reward_tier || "Bronze") 
-          : null,
+        rewards_enabled: settings.is_rewards_member,
       } as any;
 
       // @ts-ignore - Supabase type inference issue

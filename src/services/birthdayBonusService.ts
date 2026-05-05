@@ -74,13 +74,22 @@ export async function updateDateOfBirth(
       // Get current points
       const { data: user, error: userError } = await supabase
         .from("profiles")
-        .select("reward_points")
+        .select("reward_points, rewards_enabled")
         .eq("id", userId)
         .single()
 
       if (userError) {
         console.error('❌ Error fetching user points:', userError);
         throw userError
+      }
+
+      if ((user as any)?.rewards_enabled === false) {
+        return {
+          success: true,
+          message: "Birthday saved successfully!",
+          bonusAwarded: false,
+          points: 0
+        }
       }
 
       console.log('🎁 Current points:', user?.reward_points);
@@ -146,12 +155,15 @@ export async function checkAndAwardBirthdayBonus(userId: string): Promise<{
     // Get user profile
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("date_of_birth, birthday_bonus_year, reward_points, first_name")
+      .select("date_of_birth, birthday_bonus_year, reward_points, first_name, rewards_enabled")
       .eq("id", userId)
       .single()
 
     if (userError || !user?.date_of_birth) {
       return { awarded: false, message: "No birthday on file" }
+    }
+    if ((user as any).rewards_enabled === false) {
+      return { awarded: false, message: "Rewards are disabled for this user" }
     }
 
     const today = new Date()

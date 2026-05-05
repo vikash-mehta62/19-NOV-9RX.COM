@@ -12,7 +12,7 @@ import { PromoCodeDisplay } from "@/components/PromoCodeDisplay";
 import { 
   validatePromoCode as validatePromoCodeNew, 
   preparePromoDisplayData, 
-  calculateApplicableAmount,
+  calculateApplicableAmount, 
   calculateItemDiscounts,
   type CartItem 
 } from "@/services/promoCodeService";
@@ -153,6 +153,7 @@ export function PromoAndRewardsSection({
   const [useRewards, setUseRewards] = useState(false);
   const [pointsToUse, setPointsToUse] = useState(0);
   const [isGroupCustomer, setIsGroupCustomer] = useState(false);
+  const [rewardsEnabled, setRewardsEnabled] = useState<boolean | null>(null);
 
   // Available offers state
   const [availableOffers, setAvailableOffers] = useState<Offer[]>([]);
@@ -174,8 +175,9 @@ export function PromoAndRewardsSection({
   // Fetch redeemed rewards that are pending and not expired
   useEffect(() => {
     const fetchRedeemedRewards = async () => {
-      if (!customerId || disableRewards || isGroupCustomer) {
+      if (!customerId || disableRewards || isGroupCustomer || rewardsEnabled !== true) {
         setRedeemedRewards([]);
+        setAppliedRedeemedReward(null);
         return;
       }
 
@@ -214,7 +216,7 @@ export function PromoAndRewardsSection({
     };
 
     fetchRedeemedRewards();
-  }, [customerId, hasFreeShipping, disableRewards, isGroupCustomer]);
+  }, [customerId, hasFreeShipping, disableRewards, isGroupCustomer, rewardsEnabled]);
 
   // Fetch available credit memos
   useEffect(() => {
@@ -255,6 +257,7 @@ export function PromoAndRewardsSection({
   useEffect(() => {
     const fetchUserRewards = async () => {
       if (!customerId || disableRewards) {
+        setRewardsEnabled(null);
         setIsGroupCustomer(false);
         setUserRewards(null);
         setUseRewards(false);
@@ -263,9 +266,10 @@ export function PromoAndRewardsSection({
       }
 
       try {
+        setRewardsEnabled(null);
         const { data, error } = await supabase
           .from("profiles")
-          .select("reward_points, reward_tier, type")
+          .select("reward_points, reward_tier, type, rewards_enabled")
           .eq("id", customerId)
           .single();
 
@@ -273,8 +277,12 @@ export function PromoAndRewardsSection({
 
         if (data) {
           const isGroupType = String(data.type || "").toLowerCase() === "group";
+          const profileRewardsEnabled = (data as any).rewards_enabled !== false;
+
           setIsGroupCustomer(isGroupType);
-          if (isGroupType) {
+          setRewardsEnabled(profileRewardsEnabled);
+
+          if (isGroupType || !profileRewardsEnabled) {
             setUserRewards(null);
             setUseRewards(false);
             setPointsToUse(0);
@@ -1146,7 +1154,7 @@ export function PromoAndRewardsSection({
       </Card>
 
       {/* Rewards Points Section */}
-      {!disableRewards && userRewards && (
+      {!disableRewards && rewardsEnabled === true && userRewards && (
         <>
           {/* Negative Balance Warning */}
           {userRewards.points < 0 && (
@@ -1317,7 +1325,7 @@ export function PromoAndRewardsSection({
       )}
 
       {/* Redeemed Rewards Section - Show rewards user has already redeemed */}
-      {!disableRewards && redeemedRewards.length > 0 && (
+      {!disableRewards && rewardsEnabled === true && redeemedRewards.length > 0 && (
         <Card className={appliedRedeemedReward ? "border-pink-200 bg-pink-50/50" : ""}>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">

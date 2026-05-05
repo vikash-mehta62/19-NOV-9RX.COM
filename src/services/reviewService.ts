@@ -127,6 +127,17 @@ async function awardReviewPoints(userId: string, reviewId: string): Promise<numb
 
     const reviewBonus = config?.review_bonus || 50
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("rewards_enabled")
+      .eq("id", userId)
+      .maybeSingle()
+
+    if ((profile as any)?.rewards_enabled === false) {
+      console.log("Rewards disabled for user, skipping review points")
+      return 0
+    }
+
     console.log(`🔵 Awarding ${reviewBonus} points to user ${userId} for review ${reviewId}`)
 
     // Call RPC function to award points (bypasses RLS)
@@ -165,12 +176,16 @@ async function fallbackAwardPoints(userId: string, reviewId: string, reviewBonus
     // Get user's current points
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("reward_points, lifetime_reward_points")
+      .select("reward_points, lifetime_reward_points, rewards_enabled")
       .eq("id", userId)
       .single()
 
     if (userError || !user) {
       console.error("Error fetching user:", userError)
+      return 0
+    }
+    if ((user as any).rewards_enabled === false) {
+      console.log("Rewards disabled for user, skipping review points")
       return 0
     }
 

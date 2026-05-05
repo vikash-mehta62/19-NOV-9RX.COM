@@ -73,6 +73,8 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
   const [limit, setLimit] = useState(20);
   const [totalInvoices, setTotalInvoices] = useState(0);
 
+  const buildIlikeTerm = (value: string) => `%${value.trim()}%`;
+
  const getInvoiceDisplayAmount = (invoice: { amount?: number | null; total_amount?: number | null; processing_fee_amount?: number | null }) => {
     // total_amount already includes processing fee if it was charged
     // Use total_amount if available, otherwise use amount
@@ -289,11 +291,69 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         query = query.lte("amount", filters.amountMax);
       }
 
-      if (filters.search) {
-        const searchTerm = `%${filters.search}%`;
-        query = query.or(
-          `invoice_number.ilike.${searchTerm},customer_info->>name.ilike.${searchTerm},customer_info->>email.ilike.${searchTerm},customer_info->>phone.ilike.${searchTerm},purchase_number_external.ilike.${searchTerm}`
-        );
+      const searchValue = filters.search?.trim();
+
+      if (searchValue) {
+        const searchTerm = buildIlikeTerm(searchValue);
+        const searchTokens = searchValue.split(/\s+/).filter(Boolean);
+        const tokenTerms = searchTokens.map(buildIlikeTerm);
+        const matchedOrderIds = new Set<string>();
+        const matchedProfileIds = new Set<string>();
+
+        const orderSearchParts = [
+          `order_number.ilike.${searchTerm}`,
+          `customerInfo->>name.ilike.${searchTerm}`,
+          `customerInfo->>email.ilike.${searchTerm}`,
+          `customerInfo->>phone.ilike.${searchTerm}`,
+        ];
+
+        const profileSearchParts = [
+          `first_name.ilike.${searchTerm}`,
+          `last_name.ilike.${searchTerm}`,
+          `email.ilike.${searchTerm}`,
+          `company_name.ilike.${searchTerm}`,
+          ...tokenTerms.flatMap((term) => [`first_name.ilike.${term}`, `last_name.ilike.${term}`]),
+        ];
+
+        const [{ data: orderMatches, error: orderSearchError }, { data: profileMatches, error: profileSearchError }] =
+          await Promise.all([
+            supabase.from("orders").select("id").or(orderSearchParts.join(",")).limit(1000),
+            supabase.from("profiles").select("id").or(profileSearchParts.join(",")).limit(1000),
+          ]);
+
+        if (orderSearchError) {
+          console.warn("Invoice order search lookup failed:", orderSearchError);
+        }
+
+        if (profileSearchError) {
+          console.warn("Invoice profile search lookup failed:", profileSearchError);
+        }
+
+        orderMatches?.forEach((order) => {
+          if (order.id) matchedOrderIds.add(order.id);
+        });
+
+        profileMatches?.forEach((profile) => {
+          if (profile.id) matchedProfileIds.add(profile.id);
+        });
+
+        const invoiceSearchParts = [
+          `invoice_number.ilike.${searchTerm}`,
+          `customer_info->>name.ilike.${searchTerm}`,
+          `customer_info->>email.ilike.${searchTerm}`,
+          `customer_info->>phone.ilike.${searchTerm}`,
+          `purchase_number_external.ilike.${searchTerm}`,
+        ];
+
+        if (matchedOrderIds.size > 0) {
+          invoiceSearchParts.push(`order_id.in.(${Array.from(matchedOrderIds).join(",")})`);
+        }
+
+        if (matchedProfileIds.size > 0) {
+          invoiceSearchParts.push(`profile_id.in.(${Array.from(matchedProfileIds).join(",")})`);
+        }
+
+        query = query.or(invoiceSearchParts.join(","));
       }
 
       const { data, error, count } = await query;

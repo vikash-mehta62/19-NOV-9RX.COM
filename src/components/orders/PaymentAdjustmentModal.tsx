@@ -1043,7 +1043,8 @@ const refundCreditAmount = Math.max(
                     </Label>
                   </div>
 
-                  <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                  {/* NOT Required Now */}
+                  {/* <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
                     <RadioGroupItem value="process_refund" id="process_refund" />
                     <Label htmlFor="process_refund" className="flex items-center gap-2 cursor-pointer flex-1">
                       <Wallet className="h-4 w-4 text-blue-500" />
@@ -1055,7 +1056,7 @@ const refundCreditAmount = Math.max(
                         </p>
                       </div>
                     </Label>
-                  </div>
+                  </div> */}
                 </RadioGroup>
               )}
               </div>

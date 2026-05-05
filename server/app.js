@@ -1116,7 +1116,7 @@ async function awardPayNowOrderPoints({ order, orderId, orderTotal, newPaymentSt
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("id, type, reward_points, lifetime_reward_points, reward_tier")
+      .select("id, type, rewards_enabled, reward_points, lifetime_reward_points, reward_tier")
       .eq("id", rewardUserId)
       .maybeSingle();
 
@@ -1126,6 +1126,10 @@ async function awardPayNowOrderPoints({ order, orderId, orderTotal, newPaymentSt
     }
     if (String(profile.type || "").toLowerCase() === "group") {
       console.log(`[pay-now] Group profile ${rewardUserId}; reward points skipped for order ${orderId}`);
+      return;
+    }
+    if (profile.rewards_enabled === false) {
+      console.log(`[pay-now] Rewards disabled for profile ${rewardUserId}; reward points skipped for order ${orderId}`);
       return;
     }
 

@@ -175,7 +175,7 @@ async function fallbackCompleteReferral(
     // Find pending referral for this user
     const { data: referral, error: findError } = await supabase
       .from("referrals")
-      .select("*, referrer:referrer_id(id, reward_points, lifetime_reward_points, email, first_name, referral_count)")
+      .select("*, referrer:referrer_id(id, rewards_enabled, reward_points, lifetime_reward_points, email, first_name, referral_count)")
       .eq("referred_id", userId)
       .eq("status", "pending")
       .maybeSingle()
@@ -197,10 +197,12 @@ async function fallbackCompleteReferral(
 
     // Award points to referrer
     const referrerData = referral.referrer as any
-    if (referrerData) {
+    let totalAwarded = 0
+    if (referrerData && referrerData.rewards_enabled !== false) {
       const newPoints = (referrerData.reward_points || 0) + referralBonus
       const newLifetimePoints = (referrerData.lifetime_reward_points || 0) + referralBonus
       const newCount = (referrerData.referral_count || 0) + 1
+      totalAwarded += referralBonus
 
       await supabase
         .from("profiles")
@@ -227,11 +229,12 @@ async function fallbackCompleteReferral(
     // Award points to referred user too
     const { data: referredUser } = await supabase
       .from("profiles")
-      .select("reward_points, lifetime_reward_points")
+      .select("reward_points, lifetime_reward_points, rewards_enabled")
       .eq("id", userId)
       .maybeSingle()
 
-    if (referredUser) {
+    if (referredUser && (referredUser as any).rewards_enabled !== false) {
+      totalAwarded += referralBonus
       await supabase
         .from("profiles")
         .update({ 
@@ -253,7 +256,7 @@ async function fallbackCompleteReferral(
           })
     }
 
-    return { success: true, pointsAwarded: referralBonus * 2 }
+    return { success: true, pointsAwarded: totalAwarded }
   } catch (error) {
     console.error("Fallback complete referral error:", error)
     return { success: false, pointsAwarded: 0 }

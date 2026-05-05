@@ -36,6 +36,7 @@ export function InvoiceFilters({ onFilterChange, exportInvoicesToCSV }: InvoiceF
   };
 
   const activeFilterCount = Object.values(filters).filter(v => v && v !== "all").length;
+  const advancedFilterCount = [filters.dateFrom, filters.dateTo, filters.amountMin, filters.amountMax].filter(Boolean).length;
 
   return (
     <div className="space-y-4">
@@ -97,9 +98,9 @@ export function InvoiceFilters({ onFilterChange, exportInvoicesToCSV }: InvoiceF
         >
           <Calendar className="w-4 h-4" />
           Date Range
-          {activeFilterCount > 0 && (
+          {advancedFilterCount > 0 && (
             <Badge variant="secondary" className="ml-1 bg-blue-100 text-blue-700 text-xs px-1.5">
-              {activeFilterCount}
+              {advancedFilterCount}
             </Badge>
           )}
         </Button>

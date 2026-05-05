@@ -67,11 +67,11 @@ export async function calculateOrderPoints(orderTotal: number, userId: string): 
 
   const { data: user } = await supabase
     .from("profiles")
-    .select("reward_points, type")
+    .select("reward_points, type, rewards_enabled")
     .eq("id", userId)
     .maybeSingle()
 
-  if (!user || isGroupType(user.type)) return 0
+  if (!user || isGroupType(user.type) || (user as any).rewards_enabled === false) return 0
 
   const tiers = await getRewardTiers()
   const currentPoints = user.reward_points || 0
@@ -152,12 +152,12 @@ export async function awardOrderPoints(
     // Get user's current points
     const { data: user } = await supabase
       .from("profiles")
-      .select("reward_points, lifetime_reward_points, email, first_name, last_name, company_name, type")
+      .select("reward_points, lifetime_reward_points, email, first_name, last_name, company_name, type, rewards_enabled")
       .eq("id", userId)
       .single()
 
     if (!user) throw new Error("User not found")
-    if (isGroupType(user.type)) {
+    if (isGroupType(user.type) || (user as any).rewards_enabled === false) {
       return {
         success: false,
         pointsEarned: 0,

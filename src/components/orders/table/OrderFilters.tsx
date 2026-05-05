@@ -6,7 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar as CalendarIcon, Download } from "lucide-react";
+import { Calendar as CalendarIcon, Download, X } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -44,6 +44,14 @@ export function OrderFilters({
       }
     );
   }, [dateRange]);
+
+  const hasDateFilter = Boolean(date?.from || date?.to);
+
+  const clearDateFilter = () => {
+    const clearedDate = { from: undefined, to: undefined };
+    setDate(clearedDate);
+    onDateChange(clearedDate);
+  };
 
   return (
     <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
@@ -90,6 +98,14 @@ export function OrderFilters({
               }}
               numberOfMonths={2}
             />
+            {hasDateFilter && (
+              <div className="border-t p-2">
+                <Button type="button" variant="ghost" size="sm" className="w-full bg-blue-600 text-white hover:bg-blue-700" onClick={clearDateFilter}>
+                  <X className="mr-2 h-4 w-4" />
+                  Clear date filter
+                </Button>
+              </div>
+            )}
           </PopoverContent>
         </Popover>
       </div>
