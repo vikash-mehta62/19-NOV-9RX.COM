@@ -208,7 +208,7 @@ export const WelcomeDashboard = () => {
             className="overflow-hidden"
           >
             <div className="mt-3 space-y-3">
-              <div className="grid grid-cols-4 gap-3">
+              <div className={`grid gap-3 ${rewardsEnabled ? "grid-cols-4" : "grid-cols-3"}`}>
                 <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 text-white cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate("/pharmacy/orders")}>
                   <CardContent className="p-4 text-center">
                     <Package className="h-6 w-6 mx-auto mb-2 opacity-90" />
@@ -231,16 +231,16 @@ export const WelcomeDashboard = () => {
                   </CardContent>
                 </Card>
                 {rewardsEnabled && (
-                <Card className="bg-gradient-to-br from-amber-500 to-amber-600 border-0 text-white cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate("/pharmacy/rewards")}>
-                  <CardContent className="p-4 text-center">
-                    <Star className="h-6 w-6 mx-auto mb-2 opacity-90" />
-                    <p className="text-2xl font-bold">{stats.rewardPoints}</p>
-                    <p className="text-xs text-amber-100">Points</p>
-                  </CardContent>
-                </Card>
+                  <Card className="bg-gradient-to-br from-amber-500 to-amber-600 border-0 text-white cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate("/pharmacy/rewards")}>
+                    <CardContent className="p-4 text-center">
+                      <Star className="h-6 w-6 mx-auto mb-2 opacity-90" />
+                      <p className="text-2xl font-bold">{stats.rewardPoints}</p>
+                      <p className="text-xs text-amber-100">Points</p>
+                    </CardContent>
+                  </Card>
                 )}
               </div>
-              <div className="grid grid-cols-4 gap-3">
+              <div className={`grid gap-3 ${rewardsEnabled ? "grid-cols-4" : "grid-cols-3"}`}>
                 {quickActions.map((action, index) => (
                   <Button key={index} variant="outline" className="h-auto py-3 flex flex-col items-center gap-2 hover:bg-gray-50 border-gray-200 bg-white" onClick={() => navigate(action.path)}>
                     <div className={`w-9 h-9 ${action.color} rounded-lg flex items-center justify-center`}>

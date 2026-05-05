@@ -92,6 +92,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
       .then(({ data }) => {
         if (data) dispatch(setUserProfile(data))
       })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserProfile?.id])
   
   // Calculate total cart items
