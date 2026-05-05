@@ -897,10 +897,12 @@ console.log(userProfile)
                   <DropdownMenuSeparator />
 
                   {/* Rewards & Favorites */}
+                  {(userProfile as any)?.rewards_enabled !== false && (
                   <DropdownMenuItem onClick={() => navigate("/pharmacy/rewards")}>
                     <Gift className="w-4 h-4 mr-2 text-pink-600" />
                     Rewards & Points
                   </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => navigate("/pharmacy/wishlist")}>
                     <Heart className="w-4 h-4 mr-2 text-red-500" />
                     Wishlist

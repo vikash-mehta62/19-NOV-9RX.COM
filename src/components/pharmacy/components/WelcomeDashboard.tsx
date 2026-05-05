@@ -125,11 +125,13 @@ export const WelcomeDashboard = () => {
 
   const firstName = userProfile?.first_name || userProfile?.company_name?.split(" ")[0] || "there";
 
+  const rewardsEnabled = (userProfile as any)?.rewards_enabled !== false;
+
   const quickActions = [
     { icon: Package, label: "My Orders", path: "/pharmacy/orders", color: "bg-blue-500" },
     { icon: Clock, label: "Reorder", path: "/pharmacy/buy-again", color: "bg-green-500" },
     { icon: CreditCard, label: "Invoices", path: "/pharmacy/invoices", color: "bg-purple-500" },
-    { icon: Gift, label: "Rewards", path: "/pharmacy/rewards", color: "bg-pink-500" },
+    ...(rewardsEnabled ? [{ icon: Gift, label: "Rewards", path: "/pharmacy/rewards", color: "bg-pink-500" }] : []),
   ];
 
   return (
@@ -167,10 +169,12 @@ export const WelcomeDashboard = () => {
                     <CreditCard className="h-3 w-3" />
                     <span className="text-xs font-medium">${stats.creditBalance.toFixed(0)}</span>
                   </div>
+                  {rewardsEnabled && (
                   <div className="flex items-center gap-1.5 bg-amber-50 text-amber-700 rounded-full px-2.5 py-1">
                     <Star className="h-3 w-3" />
                     <span className="text-xs font-medium">{stats.rewardPoints}</span>
                   </div>
+                  )}
                 </div>
               )}
               <Button
@@ -226,6 +230,7 @@ export const WelcomeDashboard = () => {
                     <p className="text-xs text-emerald-100">Credit</p>
                   </CardContent>
                 </Card>
+                {rewardsEnabled && (
                 <Card className="bg-gradient-to-br from-amber-500 to-amber-600 border-0 text-white cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate("/pharmacy/rewards")}>
                   <CardContent className="p-4 text-center">
                     <Star className="h-6 w-6 mx-auto mb-2 opacity-90" />
@@ -233,6 +238,7 @@ export const WelcomeDashboard = () => {
                     <p className="text-xs text-amber-100">Points</p>
                   </CardContent>
                 </Card>
+                )}
               </div>
               <div className="grid grid-cols-4 gap-3">
                 {quickActions.map((action, index) => (

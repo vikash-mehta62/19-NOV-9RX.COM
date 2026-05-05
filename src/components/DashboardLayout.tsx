@@ -45,11 +45,13 @@ import { SidebarNavigation } from "./dashboard/SidebarNavigation";
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useCart } from "@/hooks/use-cart"
 import { AnnouncementDisplay } from "@/components/AnnouncementDisplay"
-import { useSelector } from "react-redux"
+import { useSelector, useDispatch } from "react-redux"
 import { RootState } from "@/store/store"
 import { AdminPermission, hasAdminPermission, isInternalAdminType, shouldHideAdminFinancials } from "@/lib/adminAccess"
 import { useLocation } from "react-router-dom"
 import PharmacyFeedbackWidget from "@/components/feedback/PharmacyFeedbackWidget"
+import { supabase } from "@/supabaseClient"
+import { setUserProfile } from "@/store/actions/userAction"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -73,10 +75,24 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
   const isMobile = useIsMobile()
   const { cartItems } = useCart()
   const currentUserProfile = useSelector((state: RootState) => state.user.profile)
+  const dispatch = useDispatch()
   const location = useLocation()
   const contentRef = useRef<HTMLDivElement | null>(null)
   const hideFinancialData = role === "admin" && shouldHideAdminFinancials(currentUserProfile)
   const hideCartDrawer = role === "admin" && location.pathname.startsWith("/admin/po")
+
+  // Refresh profile from Supabase on mount so fields like rewards_enabled are always current
+  useEffect(() => {
+    if (!currentUserProfile?.id) return
+    supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", currentUserProfile.id)
+      .single()
+      .then(({ data }) => {
+        if (data) dispatch(setUserProfile(data))
+      })
+  }, [currentUserProfile?.id])
   
   // Calculate total cart items
   const totalCartItems = useMemo(() => 
@@ -251,8 +267,19 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
   }
 
   const resolvedMenuItems = useMemo(() => {
+    const rewardsEnabled = (currentUserProfile as any)?.rewards_enabled !== false
+
     if (role !== "admin" || !isInternalAdminType(currentUserProfile?.type)) {
-      return menuItems[role]
+      const items = menuItems[role] as NavigationGroup[]
+      if (role === "pharmacy" && !rewardsEnabled) {
+        return items
+          .map((group) => ({
+            ...group,
+            items: group.items.filter((item: NavigationItem) => item.path !== "/pharmacy/rewards"),
+          }))
+          .filter((group) => group.items.length > 0)
+      }
+      return items
     }
 
     return (menuItems.admin as NavigationGroup[])
@@ -261,7 +288,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         items: group.items.filter((item) => hasAdminPermission(currentUserProfile, item.requiredPermission)),
       }))
       .filter((group) => group.items.length > 0)
-  }, [currentUserProfile, menuItems, role])
+  }, [currentUserProfile, role])
 
   useEffect(() => {
     if (!hideFinancialData) return
