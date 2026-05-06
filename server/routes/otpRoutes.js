@@ -431,6 +431,7 @@ router.post("/verify", async (req, res) => {
         freeShipping: profile.freeShipping,
         taxPercantage: profile.taxPercantage,
         order_pay: profile.order_pay,
+        rewardsEnabled: profile.rewards_enabled,
       }
     });
 

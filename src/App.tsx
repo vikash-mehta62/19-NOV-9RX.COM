@@ -12,6 +12,8 @@ import MaintenanceModal from "./components/MaintenanceModal";
 import { Loader2 } from "lucide-react";
 import { AdminPermission, hasEveryAdminPermission, isInternalAdminType } from "@/lib/adminAccess";
 import { AppRouteSeo } from "@/components/seo/AppRouteSeo";
+import { useDispatch } from "react-redux";
+import { setUserProfile } from "@/store/actions/userAction";
 
 // Loading component for lazy loaded routes
 const PageLoader = () => (
@@ -190,6 +192,7 @@ const ProtectedRoute = ({
   fallbackPath?: string;
 }) => {
   const location = useLocation();
+  const dispatch = useDispatch();
   const allowedRolesKey = allowedRoles.join("|");
   const allowedPermissionsKey = allowedPermissions.join("|");
   const allowedRolesSet = useMemo(
@@ -202,30 +205,9 @@ const ProtectedRoute = ({
     return hasPersistedSupabaseSession();
   }, []);
   
-  // Check sessionStorage for cached user data
-  const cachedIsLoggedIn = sessionStorage.getItem("isLoggedIn") === "true";
-  const cachedUserType = sessionStorage.getItem("userType")?.toLowerCase();
-  const cachedUserRole = sessionStorage.getItem("userRole")?.toLowerCase();
-  
-  // If no Supabase session in localStorage, immediately redirect to login (no blinking)
-  if (!hasSupabaseSession) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-  
-  // Start with cached state to avoid blinking
-  const [isChecking, setIsChecking] = useState(!cachedIsLoggedIn);
-  const [isLoggedIn, setIsLoggedIn] = useState(cachedIsLoggedIn);
-  const [isAllowed, setIsAllowed] = useState(() => {
-    // Quick check with cached data
-    if (!cachedIsLoggedIn) return false;
-    const roleCandidates = new Set<string>();
-    if (cachedUserType) roleCandidates.add(cachedUserType);
-    if (cachedUserRole) {
-      roleCandidates.add(cachedUserRole);
-      if (cachedUserRole === "superadmin") roleCandidates.add("admin");
-    }
-    return [...roleCandidates].some((role) => allowedRolesSet.has(role));
-  });
+  const [isChecking, setIsChecking] = useState(hasSupabaseSession);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAllowed, setIsAllowed] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -244,7 +226,7 @@ const ProtectedRoute = ({
 
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role,type,admin_permissions")
+          .select("*")
           .eq("id", session.user.id)
           .maybeSingle();
 
@@ -265,6 +247,26 @@ const ProtectedRoute = ({
         }
 
         if (!isMounted) return;
+        if (profile) {
+          dispatch(setUserProfile(profile));
+          sessionStorage.setItem("isLoggedIn", "true");
+          sessionStorage.setItem("userId", session.user.id);
+          sessionStorage.setItem("userEmail", profile.email || session.user.email || "");
+          if (profile.type) sessionStorage.setItem("userType", String(profile.type));
+          if (profile.role) sessionStorage.setItem("userRole", String(profile.role));
+          if (profile.freeShipping !== undefined && profile.freeShipping !== null) {
+            sessionStorage.setItem("shipping", String(profile.freeShipping));
+          }
+          if (profile.taxPercantage !== undefined && profile.taxPercantage !== null) {
+            sessionStorage.setItem("taxper", String(profile.taxPercantage));
+          }
+          if (profile.order_pay !== undefined && profile.order_pay !== null) {
+            sessionStorage.setItem("order_pay", String(profile.order_pay));
+          }
+          if ((profile as any).rewards_enabled !== undefined && (profile as any).rewards_enabled !== null) {
+            sessionStorage.setItem("rewards_enabled", String((profile as any).rewards_enabled));
+          }
+        }
         setIsLoggedIn(true);
         setIsAllowed(allowed);
       } catch (error) {
@@ -278,21 +280,28 @@ const ProtectedRoute = ({
       }
     };
 
-    // Only check if we don't have cached data or need to verify
-    if (!cachedIsLoggedIn) {
-      checkAccess();
-    } else {
-      // Verify in background but don't block UI
-      checkAccess();
+    if (!hasSupabaseSession) {
+      setIsChecking(false);
+      setIsLoggedIn(false);
+      setIsAllowed(false);
+      return () => {
+        isMounted = false;
+      };
     }
+
+    checkAccess();
 
     return () => {
       isMounted = false;
     };
-  }, [allowedPermissionsKey, allowedPermissions, allowedRolesKey, allowedRolesSet, cachedIsLoggedIn]);
+  }, [allowedPermissionsKey, allowedPermissions, allowedRolesKey, allowedRolesSet, dispatch, hasSupabaseSession]);
 
-  // Only show loader if we're checking AND don't have cached data
-  if (isChecking && !cachedIsLoggedIn) {
+  // If no Supabase session in localStorage, immediately redirect to login (no blinking)
+  if (!hasSupabaseSession) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (isChecking) {
     return <PageLoader />;
   }
 
@@ -577,6 +586,7 @@ function App() {
       sessionStorage.removeItem("shipping");
       sessionStorage.removeItem("taxper");
       sessionStorage.removeItem("order_pay");
+      sessionStorage.removeItem("rewards_enabled");
     };
 
     const syncTrustedAuthState = async () => {
@@ -603,7 +613,7 @@ function App() {
         const userEmail = session.user.email || "";
         const { data: profile } = await supabase
           .from("profiles")
-          .select("type, role, email, freeShipping, taxPercantage, order_pay")
+          .select("type, role, email, freeShipping, taxPercantage, order_pay, rewards_enabled")
           .eq("id", userId)
           .maybeSingle();
 
@@ -624,6 +634,9 @@ function App() {
         }
         if (profile?.order_pay !== undefined && profile?.order_pay !== null) {
           sessionStorage.setItem("order_pay", String(profile.order_pay));
+        }
+        if ((profile as any)?.rewards_enabled !== undefined && (profile as any)?.rewards_enabled !== null) {
+          sessionStorage.setItem("rewards_enabled", String((profile as any).rewards_enabled));
         }
       } catch (error) {
         clearAuthSessionStorage();

@@ -241,6 +241,7 @@ export const OTPLoginForm = () => {
         sessionStorage.setItem("shipping", user.freeShipping || "false");
         sessionStorage.setItem("taxper", user.taxPercantage || "0");
         sessionStorage.setItem("order_pay", user.order_pay || "false");
+        sessionStorage.setItem("rewards_enabled", String(user.rewardsEnabled !== false));
         sessionStorage.setItem("lastActivity", Date.now().toString());
 
         // Update Redux store
@@ -260,6 +261,7 @@ export const OTPLoginForm = () => {
           freeShipping: user.freeShipping,
           taxPercantage: user.taxPercantage,
           order_pay: user.order_pay,
+          rewards_enabled: user.rewardsEnabled !== false,
         }));
 
         // Check if user has accepted Terms & Privacy Policy

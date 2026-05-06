@@ -45,13 +45,11 @@ import { SidebarNavigation } from "./dashboard/SidebarNavigation";
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useCart } from "@/hooks/use-cart"
 import { AnnouncementDisplay } from "@/components/AnnouncementDisplay"
-import { useSelector, useDispatch } from "react-redux"
+import { useSelector } from "react-redux"
 import { RootState } from "@/store/store"
 import { AdminPermission, hasAdminPermission, isInternalAdminType, shouldHideAdminFinancials } from "@/lib/adminAccess"
 import { useLocation } from "react-router-dom"
 import PharmacyFeedbackWidget from "@/components/feedback/PharmacyFeedbackWidget"
-import { supabase } from "@/supabaseClient"
-import { setUserProfile } from "@/store/actions/userAction"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -75,25 +73,10 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
   const isMobile = useIsMobile()
   const { cartItems } = useCart()
   const currentUserProfile = useSelector((state: RootState) => state.user.profile)
-  const dispatch = useDispatch()
   const location = useLocation()
   const contentRef = useRef<HTMLDivElement | null>(null)
   const hideFinancialData = role === "admin" && shouldHideAdminFinancials(currentUserProfile)
   const hideCartDrawer = role === "admin" && location.pathname.startsWith("/admin/po")
-
-  // Refresh profile from Supabase on mount so fields like rewards_enabled are always current
-  useEffect(() => {
-    if (!currentUserProfile?.id) return
-    supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", currentUserProfile.id)
-      .single()
-      .then(({ data }) => {
-        if (data) dispatch(setUserProfile(data))
-      })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserProfile?.id])
   
   // Calculate total cart items
   const totalCartItems = useMemo(() => 
@@ -203,7 +186,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         ],
       },
       {
-        label: "Payments & Rewards",
+        label: (currentUserProfile as any)?.rewards_enabled === false ? "Payments" : "Payments & Rewards",
         items: [
           { icon: Wallet, label: "Credit Balance", path: "/pharmacy/credit" },
           // { icon: CreditCard, label: "Payment Methods", path: "/pharmacy/payment-methods" }, //No need this because we are now using iPOS Pay hosted payment page.
